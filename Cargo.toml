@@ -1,0 +1,40 @@
+[package]
+name = "opensubsonic"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Complete async Rust client for the OpenSubsonic/Subsonic REST API"
+repository = "https://github.com/M0Rf30/opensubsonic-rs"
+keywords = ["subsonic", "opensubsonic", "navidrome", "music", "api"]
+categories = ["api-bindings", "multimedia::audio", "network-programming"]
+rust-version = "1.75"
+
+[dependencies]
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], default-features = false }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Auth hashing
+md-5 = "0.10"
+rand = "0.8"
+
+# URL handling
+url = "2"
+
+# Byte buffers
+bytes = "1"
+
+# Async
+futures-util = "0.3"
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging
+log = "0.4"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
