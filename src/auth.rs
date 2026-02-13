@@ -72,8 +72,8 @@ impl Auth {
 
 /// Generate a random 12-character lowercase hex salt.
 fn generate_salt() -> String {
-    let mut rng = rand::thread_rng();
-    let bytes: [u8; 6] = rng.gen(); // 6 bytes → 12 hex chars
+    let mut rng = rand::rng();
+    let bytes: [u8; 6] = rng.random(); // 6 bytes → 12 hex chars
     hex_encode(&bytes)
 }
 
