@@ -78,6 +78,20 @@ impl Client {
         self.http = client;
         self
     }
+
+    /// Accept invalid TLS certificates (self-signed, expired, wrong hostname).
+    ///
+    /// **WARNING**: This disables TLS certificate verification and should only
+    /// be used in trusted network environments (e.g. Tailscale, local LAN).
+    ///
+    /// # Errors
+    /// Returns [`Error::Http`] if the HTTP client cannot be built.
+    pub fn with_danger_accept_invalid_certs(mut self) -> Result<Self, Error> {
+        self.http = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()?;
+        Ok(self)
+    }
 }
 
 // ── Internal transport helpers ──────────────────────────────────────────────
@@ -90,8 +104,21 @@ impl Client {
     /// {base_url}/rest/{endpoint}?u=…&t=…&s=…&v=…&c=…&f=json&{extra params}
     /// ```
     pub(crate) fn build_url(&self, endpoint: &str, params: &[(&str, &str)]) -> Result<Url, Error> {
-        // Ensure trailing slash on base so that join works predictably.
-        let mut url = self.base_url.join(&format!("rest/{endpoint}"))?;
+        // Append `/rest/{endpoint}` to the existing base URL path.
+        // We cannot use `Url::join()` because it replaces the last path
+        // segment instead of appending — e.g. joining `rest/ping` on
+        // `https://host/music` would incorrectly produce `https://host/rest/ping`
+        // instead of the desired `https://host/music/rest/ping`.
+        let mut url = self.base_url.clone();
+        {
+            let mut path = url.path().to_owned();
+            if !path.ends_with('/') {
+                path.push('/');
+            }
+            path.push_str("rest/");
+            path.push_str(endpoint);
+            url.set_path(&path);
+        }
 
         {
             let mut query = url.query_pairs_mut();
@@ -263,7 +290,7 @@ mod tests {
         let url = client.build_url("ping", &[]).unwrap();
         let query: String = url.query().unwrap().to_string();
 
-        assert!(url.path().ends_with("/rest/ping"));
+        assert_eq!(url.path(), "/rest/ping");
         assert!(query.contains("u=admin"));
         assert!(query.contains("v=1.16.1"));
         assert!(query.contains("c=opensubsonic-rs"));
@@ -271,6 +298,25 @@ mod tests {
         // Token auth params.
         assert!(query.contains("t="));
         assert!(query.contains("s="));
+    }
+
+    #[test]
+    fn build_url_preserves_base_path() {
+        // When the base URL has a sub-path (e.g. /music), it must be preserved.
+        let client =
+            Client::new("https://host.example.com/music", "admin", Auth::token("pass")).unwrap();
+        let url = client.build_url("ping", &[]).unwrap();
+
+        assert_eq!(url.path(), "/music/rest/ping");
+    }
+
+    #[test]
+    fn build_url_preserves_base_path_with_trailing_slash() {
+        let client =
+            Client::new("https://host.example.com/music/", "admin", Auth::token("pass")).unwrap();
+        let url = client.build_url("getArtists", &[]).unwrap();
+
+        assert_eq!(url.path(), "/music/rest/getArtists");
     }
 
     #[test]
