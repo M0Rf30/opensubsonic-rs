@@ -71,11 +71,11 @@
 //! - **Scanning**: `getScanStatus`, `startScan`
 //! - **Transcoding** (OpenSubsonic): `getTranscodeDecision`, `getTranscodeStream`
 
+pub mod api;
 mod auth;
 mod client;
-mod error;
-pub mod api;
 pub mod data;
+mod error;
 
 pub use auth::Auth;
 pub use client::Client;

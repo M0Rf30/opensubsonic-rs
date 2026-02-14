@@ -3,9 +3,9 @@
 use bytes::Bytes;
 use url::Url;
 
+use crate::Client;
 use crate::data::{Lyrics, LyricsList};
 use crate::error::Error;
-use crate::Client;
 
 impl Client {
     /// Stream a song or video. Returns the raw bytes.
@@ -86,11 +86,7 @@ impl Client {
     /// Get captions (subtitles) for a video. Returns raw bytes.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/getcaptions/>
-    pub async fn get_captions(
-        &self,
-        id: &str,
-        format: Option<&str>,
-    ) -> Result<Bytes, Error> {
+    pub async fn get_captions(&self, id: &str, format: Option<&str>) -> Result<Bytes, Error> {
         let mut params = vec![("id", id.to_string())];
         if let Some(f) = format {
             params.push(("format", f.to_string()));
@@ -102,11 +98,7 @@ impl Client {
     /// Get cover art for an album or artist. Returns raw image bytes.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/getcoverart/>
-    pub async fn get_cover_art(
-        &self,
-        id: &str,
-        size: Option<i32>,
-    ) -> Result<Bytes, Error> {
+    pub async fn get_cover_art(&self, id: &str, size: Option<i32>) -> Result<Bytes, Error> {
         let mut params = vec![("id", id.to_string())];
         if let Some(s) = size {
             params.push(("size", s.to_string()));

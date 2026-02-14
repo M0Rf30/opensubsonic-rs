@@ -1,7 +1,7 @@
 //! Media Annotation API endpoints.
 
-use crate::error::Error;
 use crate::Client;
+use crate::error::Error;
 
 impl Client {
     /// Star songs, albums, or artists.

@@ -1,8 +1,8 @@
 //! System API endpoints: `ping`, `getLicense`, `getOpenSubsonicExtensions`, `tokenInfo`.
 
+use crate::Client;
 use crate::data::{License, OpenSubsonicExtension, TokenInfo};
 use crate::error::Error;
-use crate::Client;
 
 impl Client {
     /// Test connectivity with the server. Returns `Ok(())` on success.
@@ -27,12 +27,8 @@ impl Client {
     /// Get the list of OpenSubsonic API extensions supported by the server.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/getopensubsonicextensions/>
-    pub async fn get_open_subsonic_extensions(
-        &self,
-    ) -> Result<Vec<OpenSubsonicExtension>, Error> {
-        let data = self
-            .get_response("getOpenSubsonicExtensions", &[])
-            .await?;
+    pub async fn get_open_subsonic_extensions(&self) -> Result<Vec<OpenSubsonicExtension>, Error> {
+        let data = self.get_response("getOpenSubsonicExtensions", &[]).await?;
         let extensions = data
             .get("openSubsonicExtensions")
             .cloned()

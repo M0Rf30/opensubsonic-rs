@@ -1,8 +1,8 @@
 //! Bookmarks API endpoints.
 
+use crate::Client;
 use crate::data::{Bookmark, PlayQueue, PlayQueueByIndex};
 use crate::error::Error;
-use crate::Client;
 
 impl Client {
     /// Get all bookmarks.
@@ -86,9 +86,7 @@ impl Client {
         let data = self.get_response("getPlayQueueByIndex", &[]).await?;
         let queue = data
             .get("playQueueByIndex")
-            .ok_or_else(|| {
-                Error::Parse("Missing 'playQueueByIndex' in response".into())
-            })?;
+            .ok_or_else(|| Error::Parse("Missing 'playQueueByIndex' in response".into()))?;
         Ok(serde_json::from_value(queue.clone())?)
     }
 

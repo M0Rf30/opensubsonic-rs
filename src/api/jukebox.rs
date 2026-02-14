@@ -1,8 +1,8 @@
 //! Jukebox API endpoint.
 
+use crate::Client;
 use crate::data::{JukeboxPlaylist, JukeboxStatus};
 use crate::error::Error;
-use crate::Client;
 
 /// Jukebox control action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,9 +79,7 @@ impl Client {
         if action == JukeboxAction::Get {
             let playlist = data
                 .get("jukeboxPlaylist")
-                .ok_or_else(|| {
-                    Error::Parse("Missing 'jukeboxPlaylist' in response".into())
-                })?;
+                .ok_or_else(|| Error::Parse("Missing 'jukeboxPlaylist' in response".into()))?;
             Ok(JukeboxResult::Playlist(serde_json::from_value(
                 playlist.clone(),
             )?))

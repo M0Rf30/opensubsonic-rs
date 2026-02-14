@@ -1,11 +1,11 @@
 //! Browsing API endpoints.
 
+use crate::Client;
 use crate::data::{
-    AlbumInfo, AlbumWithSongsId3, ArtistInfo, ArtistInfo2, ArtistWithAlbumsId3,
-    ArtistsId3, Child, Directory, Genre, Indexes, MusicFolder,
+    AlbumInfo, AlbumWithSongsId3, ArtistInfo, ArtistInfo2, ArtistWithAlbumsId3, ArtistsId3, Child,
+    Directory, Genre, Indexes, MusicFolder,
 };
 use crate::error::Error;
-use crate::Client;
 
 impl Client {
     /// Get all configured music folders.
@@ -76,10 +76,7 @@ impl Client {
     /// Get all artists (ID3-based).
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/getartists/>
-    pub async fn get_artists(
-        &self,
-        music_folder_id: Option<&str>,
-    ) -> Result<ArtistsId3, Error> {
+    pub async fn get_artists(&self, music_folder_id: Option<&str>) -> Result<ArtistsId3, Error> {
         let mut params = Vec::new();
         if let Some(id) = music_folder_id {
             params.push(("musicFolderId", id));

@@ -1,17 +1,14 @@
 //! Playlists API endpoints.
 
+use crate::Client;
 use crate::data::{Playlist, PlaylistWithSongs};
 use crate::error::Error;
-use crate::Client;
 
 impl Client {
     /// Get all playlists.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/getplaylists/>
-    pub async fn get_playlists(
-        &self,
-        username: Option<&str>,
-    ) -> Result<Vec<Playlist>, Error> {
+    pub async fn get_playlists(&self, username: Option<&str>) -> Result<Vec<Playlist>, Error> {
         let mut params = Vec::new();
         if let Some(u) = username {
             params.push(("username", u));

@@ -1,5 +1,11 @@
 # opensubsonic-rs
 
+[![Crates.io](https://img.shields.io/crates/v/opensubsonic.svg)](https://crates.io/crates/opensubsonic)
+[![Docs.rs](https://docs.rs/opensubsonic/badge.svg)](https://docs.rs/opensubsonic)
+[![CI](https://github.com/M0Rf30/opensubsonic-rs/workflows/CI/badge.svg)](https://github.com/M0Rf30/opensubsonic-rs/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 Complete async Rust client for the [OpenSubsonic](https://opensubsonic.netlify.app/) / Subsonic REST API.
 
 Supports **Subsonic API v1.16.1** and **OpenSubsonic extensions**. Works with [Navidrome](https://www.navidrome.org/), [Gonic](https://github.com/sentriz/gonic), [Ampache](https://ampache.org/), and any other Subsonic-compatible server.

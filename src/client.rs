@@ -207,8 +207,8 @@ impl Client {
         if content_type.contains("application/json") || content_type.contains("text/json") {
             // Likely an error response — try to parse it.
             let text = resp.text().await?;
-            let wrapper: SubsonicResponseWrapper = serde_json::from_str(&text)
-                .map_err(|e| Error::Parse(format!("{e}: {text}")))?;
+            let wrapper: SubsonicResponseWrapper =
+                serde_json::from_str(&text).map_err(|e| Error::Parse(format!("{e}: {text}")))?;
             let inner = wrapper.response;
             if inner.status != "ok" {
                 let api_err = inner.error.map_or_else(
@@ -231,7 +231,6 @@ impl Client {
 
         Ok(resp.bytes().await?)
     }
-
 }
 
 // ── Response deserialization helpers ────────────────────────────────────────
@@ -303,8 +302,12 @@ mod tests {
     #[test]
     fn build_url_preserves_base_path() {
         // When the base URL has a sub-path (e.g. /music), it must be preserved.
-        let client =
-            Client::new("https://host.example.com/music", "admin", Auth::token("pass")).unwrap();
+        let client = Client::new(
+            "https://host.example.com/music",
+            "admin",
+            Auth::token("pass"),
+        )
+        .unwrap();
         let url = client.build_url("ping", &[]).unwrap();
 
         assert_eq!(url.path(), "/music/rest/ping");
@@ -312,8 +315,12 @@ mod tests {
 
     #[test]
     fn build_url_preserves_base_path_with_trailing_slash() {
-        let client =
-            Client::new("https://host.example.com/music/", "admin", Auth::token("pass")).unwrap();
+        let client = Client::new(
+            "https://host.example.com/music/",
+            "admin",
+            Auth::token("pass"),
+        )
+        .unwrap();
         let url = client.build_url("getArtists", &[]).unwrap();
 
         assert_eq!(url.path(), "/music/rest/getArtists");
@@ -323,9 +330,7 @@ mod tests {
     fn build_url_with_extra_params() {
         let client =
             Client::new("https://music.example.com", "admin", Auth::plain("pass")).unwrap();
-        let url = client
-            .build_url("getAlbum", &[("id", "42")])
-            .unwrap();
+        let url = client.build_url("getAlbum", &[("id", "42")]).unwrap();
         let query = url.query().unwrap().to_string();
 
         assert!(query.contains("id=42"));

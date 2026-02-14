@@ -1,8 +1,8 @@
 //! Lists API endpoints.
 
+use crate::Client;
 use crate::data::{AlbumId3, ArtistId3, Child, NowPlayingEntry};
 use crate::error::Error;
-use crate::Client;
 
 /// Album list ordering type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

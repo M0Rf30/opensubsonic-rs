@@ -1,8 +1,8 @@
 //! Media Library Scanning API endpoints.
 
+use crate::Client;
 use crate::data::ScanStatus;
 use crate::error::Error;
-use crate::Client;
 
 impl Client {
     /// Get the current scan status.

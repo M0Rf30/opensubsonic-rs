@@ -1,8 +1,8 @@
 //! Searching API endpoints.
 
+use crate::Client;
 use crate::data::{SearchResult, SearchResult2, SearchResult3};
 use crate::error::Error;
-use crate::Client;
 
 impl Client {
     /// Search (legacy, pre-1.4.0).

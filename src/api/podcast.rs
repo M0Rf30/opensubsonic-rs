@@ -1,8 +1,8 @@
 //! Podcast API endpoints.
 
+use crate::Client;
 use crate::data::{PodcastChannel, PodcastEpisode};
 use crate::error::Error;
-use crate::Client;
 
 impl Client {
     /// Get all podcast channels.

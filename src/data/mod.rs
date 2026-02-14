@@ -4,34 +4,34 @@
 //! All types derive [`serde::Deserialize`] and [`serde::Serialize`] for JSON round-tripping,
 //! as well as [`Debug`], [`Clone`], and [`PartialEq`].
 
-mod common;
+mod bookmarks;
 mod browsing;
+mod chat;
+mod common;
+mod jukebox;
+mod lyrics;
 mod media;
 mod playlists;
+mod podcast;
+mod radio;
+mod scanning;
 mod search;
 mod sharing;
-mod podcast;
-mod jukebox;
-mod radio;
-mod chat;
-mod user;
-mod bookmarks;
-mod scanning;
-mod lyrics;
 mod transcoding;
+mod user;
 
-pub use common::*;
+pub use bookmarks::*;
 pub use browsing::*;
+pub use chat::*;
+pub use common::*;
+pub use jukebox::*;
+pub use lyrics::*;
 pub use media::*;
 pub use playlists::*;
+pub use podcast::*;
+pub use radio::*;
+pub use scanning::*;
 pub use search::*;
 pub use sharing::*;
-pub use podcast::*;
-pub use jukebox::*;
-pub use radio::*;
-pub use chat::*;
-pub use user::*;
-pub use bookmarks::*;
-pub use scanning::*;
-pub use lyrics::*;
 pub use transcoding::*;
+pub use user::*;

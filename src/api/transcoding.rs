@@ -3,9 +3,9 @@
 use bytes::Bytes;
 use url::Url;
 
+use crate::Client;
 use crate::data::TranscodeDecision;
 use crate::error::Error;
-use crate::Client;
 
 impl Client {
     /// Get a transcode decision for a song (OpenSubsonic extension).
@@ -44,8 +44,8 @@ impl Client {
                 .await?
                 .error_for_status()?;
             let text = resp.text().await?;
-            let wrapper: serde_json::Value = serde_json::from_str(&text)
-                .map_err(|e| Error::Parse(format!("{e}: {text}")))?;
+            let wrapper: serde_json::Value =
+                serde_json::from_str(&text).map_err(|e| Error::Parse(format!("{e}: {text}")))?;
             let inner = wrapper
                 .get("subsonic-response")
                 .ok_or_else(|| Error::Parse("Missing subsonic-response".into()))?;
@@ -69,9 +69,7 @@ impl Client {
             }
             let decision = inner
                 .get("transcodeDecision")
-                .ok_or_else(|| {
-                    Error::Parse("Missing 'transcodeDecision' in response".into())
-                })?;
+                .ok_or_else(|| Error::Parse("Missing 'transcodeDecision' in response".into()))?;
             Ok(serde_json::from_value(decision.clone())?)
         } else {
             let param_refs: Vec<(&str, &str)> =
@@ -81,9 +79,7 @@ impl Client {
                 .await?;
             let decision = data
                 .get("transcodeDecision")
-                .ok_or_else(|| {
-                    Error::Parse("Missing 'transcodeDecision' in response".into())
-                })?;
+                .ok_or_else(|| Error::Parse("Missing 'transcodeDecision' in response".into()))?;
             Ok(serde_json::from_value(decision.clone())?)
         }
     }

@@ -1,8 +1,8 @@
 //! User Management API endpoints.
 
+use crate::Client;
 use crate::data::User;
 use crate::error::Error;
-use crate::Client;
 
 impl Client {
     /// Get details about a specific user.
@@ -201,11 +201,7 @@ impl Client {
     /// Change a user's password.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/changepassword/>
-    pub async fn change_password(
-        &self,
-        username: &str,
-        password: &str,
-    ) -> Result<(), Error> {
+    pub async fn change_password(&self, username: &str, password: &str) -> Result<(), Error> {
         self.get_response(
             "changePassword",
             &[("username", username), ("password", password)],

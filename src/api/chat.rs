@@ -1,17 +1,14 @@
 //! Chat API endpoints.
 
+use crate::Client;
 use crate::data::ChatMessage;
 use crate::error::Error;
-use crate::Client;
 
 impl Client {
     /// Get chat messages.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/getchatmessages/>
-    pub async fn get_chat_messages(
-        &self,
-        since: Option<i64>,
-    ) -> Result<Vec<ChatMessage>, Error> {
+    pub async fn get_chat_messages(&self, since: Option<i64>) -> Result<Vec<ChatMessage>, Error> {
         let mut params = Vec::new();
         let since_str;
         if let Some(s) = since {

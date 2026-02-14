@@ -1,17 +1,15 @@
 //! Internet Radio API endpoints.
 
+use crate::Client;
 use crate::data::InternetRadioStation;
 use crate::error::Error;
-use crate::Client;
 
 impl Client {
     /// Get all internet radio stations.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/getinternetradiostations/>
     pub async fn get_internet_radio_stations(&self) -> Result<Vec<InternetRadioStation>, Error> {
-        let data = self
-            .get_response("getInternetRadioStations", &[])
-            .await?;
+        let data = self.get_response("getInternetRadioStations", &[]).await?;
         let stations = data
             .get("internetRadioStations")
             .and_then(|v| v.get("internetRadioStation"))

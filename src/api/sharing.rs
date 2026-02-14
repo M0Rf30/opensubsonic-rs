@@ -1,8 +1,8 @@
 //! Sharing API endpoints.
 
+use crate::Client;
 use crate::data::Share;
 use crate::error::Error;
-use crate::Client;
 
 impl Client {
     /// Get all shares.
