@@ -22,9 +22,7 @@ const DEFAULT_CLIENT_NAME: &str = "opensubsonic-rs";
 pub struct Client {
     /// Server base URL (e.g. `https://music.example.com`).
     base_url: Url,
-    /// Subsonic user name.
-    username: String,
-    /// Authentication configuration.
+    /// Authentication configuration (includes username when applicable).
     auth: Auth,
     /// Client application identifier sent as the `c` parameter.
     client_name: String,
@@ -41,16 +39,15 @@ impl Client {
     ///
     /// # Arguments
     /// * `base_url` — The server base URL, e.g. `"https://music.example.com"`.
-    /// * `username` — The Subsonic user name.
-    /// * `auth` — Authentication method (see [`Auth::token`] / [`Auth::plain`]).
+    /// * `auth` — Authentication method (see [`Auth::token`], [`Auth::plain`],
+    ///   [`Auth::api_key`]).
     ///
     /// # Errors
     /// Returns [`Error::Url`] if `base_url` cannot be parsed.
-    pub fn new(base_url: &str, username: &str, auth: Auth) -> Result<Self, Error> {
+    pub fn new(base_url: &str, auth: Auth) -> Result<Self, Error> {
         let base_url = Url::parse(base_url)?;
         Ok(Self {
             base_url,
-            username: username.to_owned(),
             auth,
             client_name: DEFAULT_CLIENT_NAME.to_owned(),
             api_version: DEFAULT_API_VERSION.to_owned(),
@@ -103,6 +100,8 @@ impl Client {
     /// ```text
     /// {base_url}/rest/{endpoint}?u=…&t=…&s=…&v=…&c=…&f=json&{extra params}
     /// ```
+    ///
+    /// For API key authentication the `u` parameter is omitted and `apiKey` is sent instead.
     pub(crate) fn build_url(&self, endpoint: &str, params: &[(&str, &str)]) -> Result<Url, Error> {
         // Append `/rest/{endpoint}` to the existing base URL path.
         // We cannot use `Url::join()` because it replaces the last path
@@ -122,9 +121,11 @@ impl Client {
 
         {
             let mut query = url.query_pairs_mut();
-            // Username.
-            query.append_pair("u", &self.username);
-            // Auth params (token+salt or password).
+            // Username, for auth methods where applicable.
+            if let Some(username) = self.auth.username() {
+                query.append_pair("u", username);
+            }
+            // Auth params (apiKey, token+salt, or password).
             for (k, v) in self.auth.params() {
                 query.append_pair(k, &v);
             }
@@ -285,7 +286,7 @@ mod tests {
     #[test]
     fn build_url_contains_required_params() {
         let client =
-            Client::new("https://music.example.com", "admin", Auth::token("pass")).unwrap();
+            Client::new("https://music.example.com", Auth::token("admin", "pass")).unwrap();
         let url = client.build_url("ping", &[]).unwrap();
         let query: String = url.query().unwrap().to_string();
 
@@ -304,8 +305,7 @@ mod tests {
         // When the base URL has a sub-path (e.g. /music), it must be preserved.
         let client = Client::new(
             "https://host.example.com/music",
-            "admin",
-            Auth::token("pass"),
+            Auth::token("admin", "pass"),
         )
         .unwrap();
         let url = client.build_url("ping", &[]).unwrap();
@@ -317,8 +317,7 @@ mod tests {
     fn build_url_preserves_base_path_with_trailing_slash() {
         let client = Client::new(
             "https://host.example.com/music/",
-            "admin",
-            Auth::token("pass"),
+            Auth::token("admin", "pass"),
         )
         .unwrap();
         let url = client.build_url("getArtists", &[]).unwrap();
@@ -329,7 +328,7 @@ mod tests {
     #[test]
     fn build_url_with_extra_params() {
         let client =
-            Client::new("https://music.example.com", "admin", Auth::plain("pass")).unwrap();
+            Client::new("https://music.example.com", Auth::plain("admin", "pass")).unwrap();
         let url = client.build_url("getAlbum", &[("id", "42")]).unwrap();
         let query = url.query().unwrap().to_string();
 
@@ -338,8 +337,26 @@ mod tests {
     }
 
     #[test]
+    fn build_url_api_key_auth() {
+        let client =
+            Client::new("https://music.example.com", Auth::api_key("my-api-key-123")).unwrap();
+        let url = client.build_url("ping", &[]).unwrap();
+        let query = url.query().unwrap().to_string();
+
+        assert_eq!(url.path(), "/rest/ping");
+        // API key auth must NOT include a username parameter.
+        assert!(!query.contains("u="));
+        // Must include the apiKey parameter.
+        assert!(query.contains("apiKey=my-api-key-123"));
+        // Standard params still present.
+        assert!(query.contains("v=1.16.1"));
+        assert!(query.contains("c=opensubsonic-rs"));
+        assert!(query.contains("f=json"));
+    }
+
+    #[test]
     fn builder_methods() {
-        let client = Client::new("https://example.com", "u", Auth::token("p"))
+        let client = Client::new("https://example.com", Auth::token("u", "p"))
             .unwrap()
             .with_client_name("my-app")
             .with_api_version("1.15.0");
