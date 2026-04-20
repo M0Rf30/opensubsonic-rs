@@ -16,6 +16,7 @@ mod podcast;
 mod scanning;
 mod searching;
 mod sharing;
+mod sonic_similarity;
 mod system;
 mod transcoding;
 mod user_management;

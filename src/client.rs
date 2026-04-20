@@ -169,10 +169,12 @@ impl Client {
                 || SubsonicApiError {
                     code: 0,
                     message: "Unknown API error (status != ok but no error object)".into(),
+                    help_url: None,
                 },
                 |e| SubsonicApiError {
                     code: e.code,
                     message: e.message.unwrap_or_default(),
+                    help_url: e.help_url,
                 },
             );
             return Err(Error::Api(api_err));
@@ -216,10 +218,12 @@ impl Client {
                     || SubsonicApiError {
                         code: 0,
                         message: "Unknown API error on binary endpoint".into(),
+                        help_url: None,
                     },
                     |e| SubsonicApiError {
                         code: e.code,
                         message: e.message.unwrap_or_default(),
+                        help_url: e.help_url,
                     },
                 );
                 return Err(Error::Api(api_err));
@@ -273,9 +277,11 @@ struct SubsonicResponseInner {
 
 /// Subsonic API error object embedded in the response.
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ApiErrorResponse {
     code: i32,
     message: Option<String>,
+    help_url: Option<String>,
 }
 
 #[cfg(test)]

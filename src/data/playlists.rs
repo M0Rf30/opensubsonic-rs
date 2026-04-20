@@ -85,6 +85,9 @@ pub struct PlaylistWithSongs {
     /// Whether the playlist is read-only (OpenSubsonic).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub readonly: Option<bool>,
+    /// Date until playlist contents are valid for caching (ISO 8601, OpenSubsonic).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub valid_until: Option<String>,
     /// The songs in this playlist.
     #[serde(default)]
     pub entry: Vec<Child>,

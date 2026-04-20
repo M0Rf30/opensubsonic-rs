@@ -65,6 +65,7 @@ impl Client {
                 return Err(Error::Api(crate::error::SubsonicApiError {
                     code,
                     message: msg,
+                    help_url: None,
                 }));
             }
             let decision = inner

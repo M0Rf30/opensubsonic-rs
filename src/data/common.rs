@@ -293,9 +293,9 @@ pub struct AlbumId3 {
     /// Display artist string (OpenSubsonic).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_artist: Option<String>,
-    /// All album releases (OpenSubsonic).
+    /// Release types such as "Album", "Compilation", "EP" (OpenSubsonic).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub releases: Option<Vec<serde_json::Value>>,
+    pub release_types: Option<Vec<String>>,
     /// Release date (OpenSubsonic).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub original_release_date: Option<ItemDate>,
@@ -429,6 +429,26 @@ pub struct Artist {
     /// Average rating (1.0–5.0).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub average_rating: Option<f64>,
+}
+
+/// A musical work associated with a song (OpenSubsonic).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Work {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub music_brainz_id: Option<String>,
+}
+
+/// A movement within a musical work (OpenSubsonic).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Movement {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub number: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub count: Option<i32>,
 }
 
 // ── Child (song/media) ─────────────────────────────────────────────────────
@@ -589,6 +609,12 @@ pub struct Child {
     /// Explicit status (OpenSubsonic): "explicit", "clean", or "".
     #[serde(skip_serializing_if = "Option::is_none")]
     pub explicit_status: Option<String>,
+    /// Works associated with the song (OpenSubsonic).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub works: Option<Vec<Work>>,
+    /// Movements associated with the song (OpenSubsonic).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub movements: Option<Vec<Movement>>,
 }
 
 /// A "now playing" entry — a [`Child`] with additional playback metadata.
@@ -610,4 +636,13 @@ pub struct NowPlayingEntry {
     /// Player name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub player_name: Option<String>,
+    /// Playback state (OpenSubsonic, playbackReport extension).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state: Option<String>,
+    /// Playback position in milliseconds (OpenSubsonic, playbackReport extension).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position_ms: Option<i64>,
+    /// Playback rate multiplier (OpenSubsonic, playbackReport extension).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub playback_rate: Option<f64>,
 }

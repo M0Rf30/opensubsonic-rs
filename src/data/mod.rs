@@ -17,6 +17,7 @@ mod radio;
 mod scanning;
 mod search;
 mod sharing;
+mod sonic_similarity;
 mod transcoding;
 mod user;
 
@@ -33,5 +34,6 @@ pub use radio::*;
 pub use scanning::*;
 pub use search::*;
 pub use sharing::*;
+pub use sonic_similarity::*;
 pub use transcoding::*;
 pub use user::*;

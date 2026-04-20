@@ -86,4 +86,34 @@ impl Client {
         self.get_response("scrobble", &param_refs).await?;
         Ok(())
     }
+
+    /// Report playback state to the server (OpenSubsonic, playbackReport extension).
+    ///
+    /// See <https://opensubsonic.netlify.app/docs/endpoints/reportplayback/>
+    pub async fn report_playback(
+        &self,
+        media_id: &str,
+        media_type: &str,
+        position_ms: i64,
+        state: &str,
+        playback_rate: Option<f64>,
+        ignore_scrobble: Option<bool>,
+    ) -> Result<(), Error> {
+        let position_str = position_ms.to_string();
+        let mut params = vec![
+            ("mediaId", media_id.to_string()),
+            ("mediaType", media_type.to_string()),
+            ("positionMs", position_str),
+            ("state", state.to_string()),
+        ];
+        if let Some(r) = playback_rate {
+            params.push(("playbackRate", r.to_string()));
+        }
+        if let Some(i) = ignore_scrobble {
+            params.push(("ignoreScrobble", i.to_string()));
+        }
+        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        self.get_response("reportPlayback", &param_refs).await?;
+        Ok(())
+    }
 }

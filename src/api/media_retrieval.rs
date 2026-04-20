@@ -143,10 +143,17 @@ impl Client {
     /// Get structured lyrics for a song by ID (OpenSubsonic extension).
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/getlyricsbysongid/>
-    pub async fn get_lyrics_by_song_id(&self, id: &str) -> Result<LyricsList, Error> {
-        let data = self
-            .get_response("getLyricsBySongId", &[("id", id)])
-            .await?;
+    pub async fn get_lyrics_by_song_id(
+        &self,
+        id: &str,
+        enhanced: Option<bool>,
+    ) -> Result<LyricsList, Error> {
+        let mut params = vec![("id", id.to_string())];
+        if let Some(e) = enhanced {
+            params.push(("enhanced", e.to_string()));
+        }
+        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        let data = self.get_response("getLyricsBySongId", &param_refs).await?;
         let lyrics = data
             .get("lyricsList")
             .cloned()

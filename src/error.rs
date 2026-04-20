@@ -86,6 +86,8 @@ pub struct SubsonicApiError {
     pub code: i32,
     /// A human-readable error message.
     pub message: String,
+    /// URL with additional context for the error (OpenSubsonic).
+    pub help_url: Option<String>,
 }
 
 impl SubsonicApiError {
