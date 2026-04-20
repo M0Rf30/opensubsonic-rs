@@ -19,10 +19,18 @@ pub enum SubsonicErrorCode {
     WrongCredentials = 40,
     /// Token authentication not supported for LDAP users (code 41).
     TokenAuthNotSupported = 41,
+    /// Provided authentication mechanism not supported (code 42, OpenSubsonic extension).
+    ///
+    /// Returned when the server does not support the authentication mechanism used by the client.
+    AuthMechanismNotSupported = 42,
     /// Conflicting authentication mechanisms (code 43, OpenSubsonic extension).
     ///
     /// Returned when both API key and username-based authentication are provided.
     ConflictingAuthentication = 43,
+    /// Invalid API key (code 44, OpenSubsonic extension).
+    ///
+    /// Returned when the provided API key is not valid or has been revoked.
+    InvalidApiKey = 44,
     /// User is not authorized for the given operation (code 50).
     NotAuthorized = 50,
     /// The trial period for the Subsonic server is over (code 60).
@@ -41,7 +49,9 @@ impl SubsonicErrorCode {
             30 => Some(Self::ServerMustUpgrade),
             40 => Some(Self::WrongCredentials),
             41 => Some(Self::TokenAuthNotSupported),
+            42 => Some(Self::AuthMechanismNotSupported),
             43 => Some(Self::ConflictingAuthentication),
+            44 => Some(Self::InvalidApiKey),
             50 => Some(Self::NotAuthorized),
             60 => Some(Self::TrialExpired),
             70 => Some(Self::NotFound),
@@ -59,7 +69,9 @@ impl fmt::Display for SubsonicErrorCode {
             Self::ServerMustUpgrade => write!(f, "Server must upgrade"),
             Self::WrongCredentials => write!(f, "Wrong credentials"),
             Self::TokenAuthNotSupported => write!(f, "Token auth not supported"),
+            Self::AuthMechanismNotSupported => write!(f, "Auth mechanism not supported"),
             Self::ConflictingAuthentication => write!(f, "Conflicting authentication"),
+            Self::InvalidApiKey => write!(f, "Invalid API key"),
             Self::NotAuthorized => write!(f, "Not authorized"),
             Self::TrialExpired => write!(f, "Trial expired"),
             Self::NotFound => write!(f, "Not found"),

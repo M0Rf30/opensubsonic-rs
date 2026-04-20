@@ -19,8 +19,7 @@ use opensubsonic::{Client, Auth};
 async fn main() -> Result<(), opensubsonic::Error> {
     let client = Client::new(
         "https://music.example.com",
-        "admin",
-        Auth::token("password"),
+        Auth::token("admin", "password"),
     )?;
 
     // Verify connectivity.
@@ -50,14 +49,17 @@ async fn main() -> Result<(), opensubsonic::Error> {
 
 ## Authentication
 
-Two methods are supported:
+Three methods are supported:
 
 ```rust
+// API key (OpenSubsonic extension) — sends apiKey parameter
+let auth = Auth::api_key("your-api-key");
+
 // Token-based (recommended) — sends MD5(password + salt) + salt
-let auth = Auth::token("my-password");
+let auth = Auth::token("admin", "my-password");
 
 // Plain text (legacy) — sends hex-encoded password
-let auth = Auth::plain("my-password");
+let auth = Auth::plain("admin", "my-password");
 ```
 
 ## API coverage
@@ -86,7 +88,7 @@ All ~80 endpoints from Subsonic API v1.16.1 are implemented, plus OpenSubsonic e
 ## Builder options
 
 ```rust
-let client = Client::new("https://music.example.com", "admin", Auth::token("pass"))?
+let client = Client::new("https://music.example.com", Auth::token("admin", "pass"))?
     .with_client_name("my-app")        // Custom client identifier (default: "opensubsonic-rs")
     .with_api_version("1.15.0")        // Override protocol version (default: "1.16.1")
     .with_http_client(custom_reqwest);  // Inject a custom reqwest::Client
