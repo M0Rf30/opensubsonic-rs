@@ -9,10 +9,16 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), opensubsonic::Error> {
+//!     // Token auth (username + password):
 //!     let client = Client::new(
 //!         "https://music.example.com",
-//!         "admin",
-//!         Auth::token("password"),
+//!         Auth::token("admin", "password"),
+//!     )?;
+//!
+//!     // Or API key auth (OpenSubsonic extension):
+//!     let client = Client::new(
+//!         "https://music.example.com",
+//!         Auth::api_key("your-api-key"),
 //!     )?;
 //!
 //!     // Verify connectivity.

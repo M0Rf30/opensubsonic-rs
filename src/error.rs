@@ -19,6 +19,10 @@ pub enum SubsonicErrorCode {
     WrongCredentials = 40,
     /// Token authentication not supported for LDAP users (code 41).
     TokenAuthNotSupported = 41,
+    /// Conflicting authentication mechanisms (code 43, OpenSubsonic extension).
+    ///
+    /// Returned when both API key and username-based authentication are provided.
+    ConflictingAuthentication = 43,
     /// User is not authorized for the given operation (code 50).
     NotAuthorized = 50,
     /// The trial period for the Subsonic server is over (code 60).
@@ -37,6 +41,7 @@ impl SubsonicErrorCode {
             30 => Some(Self::ServerMustUpgrade),
             40 => Some(Self::WrongCredentials),
             41 => Some(Self::TokenAuthNotSupported),
+            43 => Some(Self::ConflictingAuthentication),
             50 => Some(Self::NotAuthorized),
             60 => Some(Self::TrialExpired),
             70 => Some(Self::NotFound),
@@ -54,6 +59,7 @@ impl fmt::Display for SubsonicErrorCode {
             Self::ServerMustUpgrade => write!(f, "Server must upgrade"),
             Self::WrongCredentials => write!(f, "Wrong credentials"),
             Self::TokenAuthNotSupported => write!(f, "Token auth not supported"),
+            Self::ConflictingAuthentication => write!(f, "Conflicting authentication"),
             Self::NotAuthorized => write!(f, "Not authorized"),
             Self::TrialExpired => write!(f, "Trial expired"),
             Self::NotFound => write!(f, "Not found"),
