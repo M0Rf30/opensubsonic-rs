@@ -51,10 +51,10 @@ jobs:
         RUSTDOCFLAGS: -D warnings
     
     - name: Dry run publish
-      run: cargo publish --dry-run
+      run: cargo publish --dry-run --allow-dirty
     
     - name: Publish to crates.io
       if: startsWith(github.ref, 'refs/tags/')
-      run: cargo publish --token ${CRATES_TOKEN}
+      run: cargo publish --allow-dirty --token ${CRATES_TOKEN}
       env:
         CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
