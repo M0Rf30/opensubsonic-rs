@@ -52,7 +52,7 @@
 //!
 //! - **System**: `ping`, `getLicense`, `getOpenSubsonicExtensions`, `tokenInfo`
 //! - **Browsing**: `getMusicFolders`, `getIndexes`, `getMusicDirectory`, `getGenres`,
-//!   `getArtists`, `getArtist`, `getAlbum`, `getSong`, `getVideos`, `getArtistInfo`/`2`,
+//!   `getArtists`, `getArtist`, `getAlbum`, `getSong`, `getVideos`, `getVideoInfo`, `getArtistInfo`/`2`,
 //!   `getAlbumInfo`/`2`, `getSimilarSongs`/`2`, `getTopSongs`
 //! - **Lists**: `getAlbumList`/`2`, `getRandomSongs`, `getSongsByGenre`, `getNowPlaying`,
 //!   `getStarred`/`2`
@@ -61,7 +61,7 @@
 //!   `deletePlaylist`
 //! - **Media Retrieval**: `stream`, `download`, `hls`, `getCaptions`, `getCoverArt`,
 //!   `getLyrics`, `getLyricsBySongId`, `getAvatar`
-//! - **Media Annotation**: `star`, `unstar`, `setRating`, `scrobble`
+//! - **Media Annotation**: `star`, `unstar`, `setRating`, `scrobble`, `reportPlayback`
 //! - **Sharing**: `getShares`, `createShare`, `updateShare`, `deleteShare`
 //! - **Podcast**: `getPodcasts`, `getNewestPodcasts`, `getPodcastEpisode`, `refreshPodcasts`,
 //!   `createPodcastChannel`, `deletePodcastChannel`, `deletePodcastEpisode`,
@@ -76,6 +76,7 @@
 //!   `savePlayQueue`, `getPlayQueueByIndex`, `savePlayQueueByIndex`
 //! - **Scanning**: `getScanStatus`, `startScan`
 //! - **Transcoding** (OpenSubsonic): `getTranscodeDecision`, `getTranscodeStream`
+//! - **Sonic Similarity** (OpenSubsonic): `getSonicSimilarTracks`, `findSonicPath`
 
 pub mod api;
 mod auth;

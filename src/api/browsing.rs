@@ -3,7 +3,7 @@
 use crate::Client;
 use crate::data::{
     AlbumInfo, AlbumWithSongsId3, ArtistInfo, ArtistInfo2, ArtistWithAlbumsId3, ArtistsId3, Child,
-    Directory, Genre, Indexes, MusicFolder,
+    Directory, Genre, Indexes, MusicFolder, VideoInfo,
 };
 use crate::error::Error;
 
@@ -132,6 +132,17 @@ impl Client {
             .cloned()
             .unwrap_or_else(|| serde_json::Value::Array(vec![]));
         Ok(serde_json::from_value(videos)?)
+    }
+
+    /// Get additional info for a video: captions, audio tracks, conversions.
+    ///
+    /// See <https://opensubsonic.netlify.app/docs/endpoints/getvideoinfo/>
+    pub async fn get_video_info(&self, id: &str) -> Result<VideoInfo, Error> {
+        let data = self.get_response("getVideoInfo", &[("id", id)]).await?;
+        let info = data
+            .get("videoInfo")
+            .ok_or_else(|| Error::Parse("Missing 'videoInfo' in response".into()))?;
+        Ok(serde_json::from_value(info.clone())?)
     }
 
     /// Get artist info (folder-based).

@@ -46,6 +46,9 @@ pub struct DiscTitle {
     pub disc: i32,
     /// The name of the disc.
     pub title: String,
+    /// Cover art ID for the disc (OpenSubsonic).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cover_art: Option<String>,
 }
 
 /// A record label for an album.
@@ -381,6 +384,9 @@ pub struct AlbumWithSongsId3 {
     /// Display artist string (OpenSubsonic).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_artist: Option<String>,
+    /// Release types such as "Album", "Compilation", "EP" (OpenSubsonic).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub release_types: Option<Vec<String>>,
     /// Release date (OpenSubsonic).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub original_release_date: Option<ItemDate>,
@@ -615,6 +621,9 @@ pub struct Child {
     /// Movements associated with the song (OpenSubsonic).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub movements: Option<Vec<Movement>>,
+    /// Grouping tags associated with the song (OpenSubsonic).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub groupings: Option<Vec<String>>,
 }
 
 /// A "now playing" entry — a [`Child`] with additional playback metadata.
