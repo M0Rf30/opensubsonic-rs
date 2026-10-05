@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Gianluca Boiano
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Sonic Similarity API endpoints (OpenSubsonic extension).
 
 use crate::Client;

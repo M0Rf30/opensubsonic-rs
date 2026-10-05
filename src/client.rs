@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Gianluca Boiano
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Core HTTP client for the Subsonic / OpenSubsonic REST API.
 
 use serde::Deserialize;

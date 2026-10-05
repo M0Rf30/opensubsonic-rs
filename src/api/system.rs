@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Gianluca Boiano
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! System API endpoints: `ping`, `getLicense`, `getOpenSubsonicExtensions`, `tokenInfo`.
 
 use crate::Client;

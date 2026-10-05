@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Gianluca Boiano
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! Complete async Rust client for the OpenSubsonic / Subsonic REST API.
 //!
 //! Supports Subsonic API v1.16.1 and OpenSubsonic extensions.

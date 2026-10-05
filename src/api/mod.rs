@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Gianluca Boiano
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //! API endpoint implementations.
 //!
 //! Each sub-module corresponds to a section of the Subsonic REST API and provides
