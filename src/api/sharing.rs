@@ -6,19 +6,25 @@
 use crate::Client;
 use crate::data::Share;
 use crate::error::Error;
+use crate::params::Params;
+use serde::Deserialize;
+
+/// Wrapper for the nested `shares.share` response shape.
+#[derive(Deserialize, Default)]
+struct SharesWrapper {
+    #[serde(default)]
+    share: Vec<Share>,
+}
 
 impl Client {
     /// Get all shares.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/getshares/>
     pub async fn get_shares(&self) -> Result<Vec<Share>, Error> {
-        let data = self.get_response("getShares", &[]).await?;
-        let shares = data
-            .get("shares")
-            .and_then(|v| v.get("share"))
-            .cloned()
-            .unwrap_or_else(|| serde_json::Value::Array(vec![]));
-        Ok(serde_json::from_value(shares)?)
+        let wrapper: Option<SharesWrapper> = self
+            .get_field_or_default("getShares", &Params::new(), "shares")
+            .await?;
+        Ok(wrapper.map(|w| w.share).unwrap_or_default())
     }
 
     /// Create a new share.
@@ -30,24 +36,14 @@ impl Client {
         description: Option<&str>,
         expires: Option<i64>,
     ) -> Result<Vec<Share>, Error> {
-        let mut params = Vec::new();
-        for id in ids {
-            params.push(("id", id.to_string()));
-        }
-        if let Some(d) = description {
-            params.push(("description", d.to_string()));
-        }
-        if let Some(e) = expires {
-            params.push(("expires", e.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        let data = self.get_response("createShare", &param_refs).await?;
-        let shares = data
-            .get("shares")
-            .and_then(|v| v.get("share"))
-            .cloned()
-            .unwrap_or_else(|| serde_json::Value::Array(vec![]));
-        Ok(serde_json::from_value(shares)?)
+        let params = Params::new()
+            .with_all("id", ids)
+            .with_opt("description", description)
+            .with_opt("expires", expires);
+        let wrapper: Option<SharesWrapper> = self
+            .get_field_or_default("createShare", &params, "shares")
+            .await?;
+        Ok(wrapper.map(|w| w.share).unwrap_or_default())
     }
 
     /// Update an existing share.
@@ -59,23 +55,18 @@ impl Client {
         description: Option<&str>,
         expires: Option<i64>,
     ) -> Result<(), Error> {
-        let mut params = vec![("id", id.to_string())];
-        if let Some(d) = description {
-            params.push(("description", d.to_string()));
-        }
-        if let Some(e) = expires {
-            params.push(("expires", e.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        self.get_response("updateShare", &param_refs).await?;
-        Ok(())
+        let params = Params::new()
+            .with("id", id)
+            .with_opt("description", description)
+            .with_opt("expires", expires);
+        self.get_unit("updateShare", &params).await
     }
 
     /// Delete an existing share.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/deleteshare/>
     pub async fn delete_share(&self, id: &str) -> Result<(), Error> {
-        self.get_response("deleteShare", &[("id", id)]).await?;
-        Ok(())
+        self.get_unit("deleteShare", &Params::new().with("id", id))
+            .await
     }
 }

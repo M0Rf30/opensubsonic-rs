@@ -5,6 +5,7 @@
 
 use crate::Client;
 use crate::error::Error;
+use crate::params::Params;
 
 impl Client {
     /// Star songs, albums, or artists.
@@ -16,19 +17,11 @@ impl Client {
         album_ids: &[&str],
         artist_ids: &[&str],
     ) -> Result<(), Error> {
-        let mut params = Vec::new();
-        for id in ids {
-            params.push(("id", id.to_string()));
-        }
-        for id in album_ids {
-            params.push(("albumId", id.to_string()));
-        }
-        for id in artist_ids {
-            params.push(("artistId", id.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        self.get_response("star", &param_refs).await?;
-        Ok(())
+        let params = Params::new()
+            .with_all("id", ids.iter().copied())
+            .with_all("albumId", album_ids.iter().copied())
+            .with_all("artistId", artist_ids.iter().copied());
+        self.get_unit("star", &params).await
     }
 
     /// Unstar songs, albums, or artists.
@@ -40,19 +33,11 @@ impl Client {
         album_ids: &[&str],
         artist_ids: &[&str],
     ) -> Result<(), Error> {
-        let mut params = Vec::new();
-        for id in ids {
-            params.push(("id", id.to_string()));
-        }
-        for id in album_ids {
-            params.push(("albumId", id.to_string()));
-        }
-        for id in artist_ids {
-            params.push(("artistId", id.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        self.get_response("unstar", &param_refs).await?;
-        Ok(())
+        let params = Params::new()
+            .with_all("id", ids.iter().copied())
+            .with_all("albumId", album_ids.iter().copied())
+            .with_all("artistId", artist_ids.iter().copied());
+        self.get_unit("unstar", &params).await
     }
 
     /// Set the rating of a song, album, or artist.
@@ -61,10 +46,8 @@ impl Client {
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/setrating/>
     pub async fn set_rating(&self, id: &str, rating: i32) -> Result<(), Error> {
-        let rating_str = rating.to_string();
-        self.get_response("setRating", &[("id", id), ("rating", &rating_str)])
-            .await?;
-        Ok(())
+        let params = Params::new().with("id", id).with("rating", rating);
+        self.get_unit("setRating", &params).await
     }
 
     /// Register a song as played (scrobble).
@@ -78,16 +61,11 @@ impl Client {
         time: Option<i64>,
         submission: Option<bool>,
     ) -> Result<(), Error> {
-        let mut params = vec![("id", id.to_string())];
-        if let Some(t) = time {
-            params.push(("time", t.to_string()));
-        }
-        if let Some(s) = submission {
-            params.push(("submission", s.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        self.get_response("scrobble", &param_refs).await?;
-        Ok(())
+        let params = Params::new()
+            .with("id", id)
+            .with_opt("time", time)
+            .with_opt("submission", submission);
+        self.get_unit("scrobble", &params).await
     }
 
     /// Report playback state to the server (OpenSubsonic, playbackReport extension).
@@ -102,21 +80,13 @@ impl Client {
         playback_rate: Option<f64>,
         ignore_scrobble: Option<bool>,
     ) -> Result<(), Error> {
-        let position_str = position_ms.to_string();
-        let mut params = vec![
-            ("mediaId", media_id.to_string()),
-            ("mediaType", media_type.to_string()),
-            ("positionMs", position_str),
-            ("state", state.to_string()),
-        ];
-        if let Some(r) = playback_rate {
-            params.push(("playbackRate", r.to_string()));
-        }
-        if let Some(i) = ignore_scrobble {
-            params.push(("ignoreScrobble", i.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        self.get_response("reportPlayback", &param_refs).await?;
-        Ok(())
+        let params = Params::new()
+            .with("mediaId", media_id)
+            .with("mediaType", media_type)
+            .with("positionMs", position_ms)
+            .with("state", state)
+            .with_opt("playbackRate", playback_rate)
+            .with_opt("ignoreScrobble", ignore_scrobble);
+        self.get_unit("reportPlayback", &params).await
     }
 }

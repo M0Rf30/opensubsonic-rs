@@ -6,19 +6,25 @@
 use crate::Client;
 use crate::data::{Bookmark, PlayQueue, PlayQueueByIndex};
 use crate::error::Error;
+use crate::params::Params;
+use serde::Deserialize;
+
+/// Wrapper for the nested `bookmarks.bookmark` response shape.
+#[derive(Deserialize, Default)]
+struct BookmarksWrapper {
+    #[serde(default)]
+    bookmark: Vec<Bookmark>,
+}
 
 impl Client {
     /// Get all bookmarks.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/getbookmarks/>
     pub async fn get_bookmarks(&self) -> Result<Vec<Bookmark>, Error> {
-        let data = self.get_response("getBookmarks", &[]).await?;
-        let bookmarks = data
-            .get("bookmarks")
-            .and_then(|v| v.get("bookmark"))
-            .cloned()
-            .unwrap_or_else(|| serde_json::Value::Array(vec![]));
-        Ok(serde_json::from_value(bookmarks)?)
+        let wrapper: Option<BookmarksWrapper> = self
+            .get_field_or_default("getBookmarks", &Params::new(), "bookmarks")
+            .await?;
+        Ok(wrapper.map(|w| w.bookmark).unwrap_or_default())
     }
 
     /// Create or update a bookmark.
@@ -30,32 +36,27 @@ impl Client {
         position: i64,
         comment: Option<&str>,
     ) -> Result<(), Error> {
-        let pos_str = position.to_string();
-        let mut params = vec![("id", id), ("position", &pos_str)];
-        if let Some(c) = comment {
-            params.push(("comment", c));
-        }
-        self.get_response("createBookmark", &params).await?;
-        Ok(())
+        let params = Params::new()
+            .with("id", id)
+            .with("position", position)
+            .with_opt("comment", comment);
+        self.get_unit("createBookmark", &params).await
     }
 
     /// Delete a bookmark.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/deletebookmark/>
     pub async fn delete_bookmark(&self, id: &str) -> Result<(), Error> {
-        self.get_response("deleteBookmark", &[("id", id)]).await?;
-        Ok(())
+        self.get_unit("deleteBookmark", &Params::new().with("id", id))
+            .await
     }
 
     /// Get the play queue (current playlist/position saved by a client).
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/getplayqueue/>
     pub async fn get_play_queue(&self) -> Result<PlayQueue, Error> {
-        let data = self.get_response("getPlayQueue", &[]).await?;
-        let queue = data
-            .get("playQueue")
-            .ok_or_else(|| Error::Parse("Missing 'playQueue' in response".into()))?;
-        Ok(serde_json::from_value(queue.clone())?)
+        self.get_field("getPlayQueue", &Params::new(), "playQueue")
+            .await
     }
 
     /// Save the play queue.
@@ -67,30 +68,19 @@ impl Client {
         current: Option<&str>,
         position: Option<i64>,
     ) -> Result<(), Error> {
-        let mut params = Vec::new();
-        for id in ids {
-            params.push(("id", id.to_string()));
-        }
-        if let Some(c) = current {
-            params.push(("current", c.to_string()));
-        }
-        if let Some(p) = position {
-            params.push(("position", p.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        self.get_response("savePlayQueue", &param_refs).await?;
-        Ok(())
+        let params = Params::new()
+            .with_all("id", ids)
+            .with_opt("current", current)
+            .with_opt("position", position);
+        self.get_unit("savePlayQueue", &params).await
     }
 
     /// Get the play queue by index (OpenSubsonic extension).
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/getplayqueuebyindex/>
     pub async fn get_play_queue_by_index(&self) -> Result<PlayQueueByIndex, Error> {
-        let data = self.get_response("getPlayQueueByIndex", &[]).await?;
-        let queue = data
-            .get("playQueueByIndex")
-            .ok_or_else(|| Error::Parse("Missing 'playQueueByIndex' in response".into()))?;
-        Ok(serde_json::from_value(queue.clone())?)
+        self.get_field("getPlayQueueByIndex", &Params::new(), "playQueueByIndex")
+            .await
     }
 
     /// Save the play queue by index (OpenSubsonic extension).
@@ -102,19 +92,10 @@ impl Client {
         current_index: Option<i32>,
         position: Option<i64>,
     ) -> Result<(), Error> {
-        let mut params = Vec::new();
-        for id in ids {
-            params.push(("id", id.to_string()));
-        }
-        if let Some(ci) = current_index {
-            params.push(("currentIndex", ci.to_string()));
-        }
-        if let Some(p) = position {
-            params.push(("position", p.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        self.get_response("savePlayQueueByIndex", &param_refs)
-            .await?;
-        Ok(())
+        let params = Params::new()
+            .with_all("id", ids)
+            .with_opt("currentIndex", current_index)
+            .with_opt("position", position);
+        self.get_unit("savePlayQueueByIndex", &params).await
     }
 }

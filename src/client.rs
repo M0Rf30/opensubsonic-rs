@@ -3,11 +3,20 @@
 
 //! Core HTTP client for the Subsonic / OpenSubsonic REST API.
 
-use serde::Deserialize;
+use futures_util::TryStreamExt;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use url::Url;
 
 use crate::auth::Auth;
+use crate::data::ServerInfo;
 use crate::error::{Error, SubsonicApiError};
+use crate::params::Params;
+
+/// A boxed stream of response body chunks, as returned by streaming media endpoints.
+pub type ByteStream =
+    std::pin::Pin<Box<dyn futures_util::Stream<Item = Result<bytes::Bytes, Error>> + Send>>;
 
 /// Default Subsonic REST API protocol version.
 const DEFAULT_API_VERSION: &str = "1.16.1";
@@ -81,6 +90,10 @@ impl Client {
 
     /// Accept invalid TLS certificates (self-signed, expired, wrong hostname).
     ///
+    /// This builds a fresh [`reqwest::Client`] and **replaces** any client previously set
+    /// with [`Client::with_http_client`]; likewise a later `with_http_client` call replaces
+    /// the client built here.
+    ///
     /// **WARNING**: This disables TLS certificate verification and should only
     /// be used in trusted network environments (e.g. Tailscale, local LAN).
     ///
@@ -96,8 +109,16 @@ impl Client {
 
 // ── Internal transport helpers ──────────────────────────────────────────────
 
+/// Maximum number of characters of a response body embedded in parse errors.
+const MAX_SNIPPET_CHARS: usize = 256;
+
+/// Query parameters whose values must never be logged or surfaced in errors.
+///
+/// `password` covers `createUser` / `updateUser` / `changePassword`.
+const SECRET_QUERY_KEYS: [&str; 5] = ["p", "t", "s", "apiKey", "password"];
+
 impl Client {
-    /// Build a full request URL for the given API endpoint.
+    /// Build a full request URL for the given API endpoint using [`Params`].
     ///
     /// The resulting URL has the form:
     /// ```text
@@ -105,7 +126,15 @@ impl Client {
     /// ```
     ///
     /// For API key authentication the `u` parameter is omitted and `apiKey` is sent instead.
-    pub(crate) fn build_url(&self, endpoint: &str, params: &[(&str, &str)]) -> Result<Url, Error> {
+    pub(crate) fn endpoint_url(&self, endpoint: &str, params: &Params) -> Result<Url, Error> {
+        self.build_url_iter(endpoint, params.iter())
+    }
+
+    fn build_url_iter<'a>(
+        &self,
+        endpoint: &str,
+        params: impl Iterator<Item = (&'a str, &'a str)>,
+    ) -> Result<Url, Error> {
         // Append `/rest/{endpoint}` to the existing base URL path.
         // We cannot use `Url::join()` because it replaces the last path
         // segment instead of appending — e.g. joining `rest/ping` on
@@ -138,7 +167,7 @@ impl Client {
             // Always request JSON.
             query.append_pair("f", "json");
             // Endpoint-specific params.
-            for &(k, v) in params {
+            for (k, v) in params {
                 query.append_pair(k, v);
             }
         }
@@ -146,60 +175,17 @@ impl Client {
         Ok(url)
     }
 
-    /// Perform a GET request to `endpoint`, parse the JSON wrapper, check for errors,
-    /// and return the inner data map.
-    ///
-    /// The returned [`serde_json::Map`] contains all fields from `subsonic-response`
-    /// *except* the standard envelope fields (`status`, `version`, `type`, `serverVersion`,
-    /// `openSubsonic`, `error`).
-    pub(crate) async fn get_response(
-        &self,
-        endpoint: &str,
-        params: &[(&str, &str)],
-    ) -> Result<serde_json::Map<String, serde_json::Value>, Error> {
-        let url = self.build_url(endpoint, params)?;
-        log::debug!("GET {url}");
-
+    /// GET `url` and return the parsed envelope (errors converted).
+    async fn load_envelope(&self, url: Url) -> Result<SubsonicResponseInner, Error> {
+        log::debug!("GET {}", redact_url(&url));
         let resp = self.http.get(url).send().await?.error_for_status()?;
         let text = resp.text().await?;
-
-        let wrapper: SubsonicResponseWrapper =
-            serde_json::from_str(&text).map_err(|e| Error::Parse(format!("{e}: {text}")))?;
-        let inner = wrapper.response;
-
-        if inner.status != "ok" {
-            let api_err = inner.error.map_or_else(
-                || SubsonicApiError {
-                    code: 0,
-                    message: "Unknown API error (status != ok but no error object)".into(),
-                    help_url: None,
-                },
-                |e| SubsonicApiError {
-                    code: e.code,
-                    message: e.message.unwrap_or_default(),
-                    help_url: e.help_url,
-                },
-            );
-            return Err(Error::Api(api_err));
-        }
-
-        Ok(inner.data)
+        parse_envelope(&text)
     }
 
-    /// Perform a GET request and return the raw response bytes.
-    ///
-    /// Useful for binary endpoints such as `stream`, `getCoverArt`, `getAvatar`, and `download`.
-    ///
-    /// If the server returns a JSON error body instead of binary data the method will
-    /// detect the `application/json` content type and parse it as an API error.
-    pub(crate) async fn get_bytes(
-        &self,
-        endpoint: &str,
-        params: &[(&str, &str)],
-    ) -> Result<bytes::Bytes, Error> {
-        let url = self.build_url(endpoint, params)?;
-        log::debug!("GET (bytes) {url}");
-
+    /// Send a GET and check status plus JSON-error content type for binary endpoints.
+    async fn load_binary_response(&self, url: Url) -> Result<reqwest::Response, Error> {
+        log::debug!("GET (binary) {}", redact_url(&url));
         let resp = self.http.get(url).send().await?.error_for_status()?;
 
         // Some servers return a JSON error even on binary endpoints.
@@ -211,34 +197,199 @@ impl Client {
             .to_lowercase();
 
         if content_type.contains("application/json") || content_type.contains("text/json") {
-            // Likely an error response — try to parse it.
             let text = resp.text().await?;
-            let wrapper: SubsonicResponseWrapper =
-                serde_json::from_str(&text).map_err(|e| Error::Parse(format!("{e}: {text}")))?;
-            let inner = wrapper.response;
-            if inner.status != "ok" {
-                let api_err = inner.error.map_or_else(
-                    || SubsonicApiError {
-                        code: 0,
-                        message: "Unknown API error on binary endpoint".into(),
-                        help_url: None,
-                    },
-                    |e| SubsonicApiError {
-                        code: e.code,
-                        message: e.message.unwrap_or_default(),
-                        help_url: e.help_url,
-                    },
-                );
-                return Err(Error::Api(api_err));
-            }
-            // If status is ok but content-type is JSON, something unexpected happened.
+            parse_envelope(&text)?;
+            // Status is ok but content-type is JSON: something unexpected happened.
             return Err(Error::Parse(
                 "Expected binary response but got JSON with status=ok".into(),
             ));
         }
-
-        Ok(resp.bytes().await?)
+        Ok(resp)
     }
+
+    /// Perform a GET request and return the inner data map (envelope fields stripped).
+    pub(crate) async fn get_map(
+        &self,
+        endpoint: &str,
+        params: &Params,
+    ) -> Result<Map<String, Value>, Error> {
+        let url = self.endpoint_url(endpoint, params)?;
+        Ok(self.load_envelope(url).await?.data)
+    }
+
+    /// Perform a GET request expecting no payload.
+    pub(crate) async fn get_unit(&self, endpoint: &str, params: &Params) -> Result<(), Error> {
+        self.get_map(endpoint, params).await.map(drop)
+    }
+
+    /// GET and deserialize the value at `key`; a missing key is a parse error.
+    pub(crate) async fn get_field<T: DeserializeOwned>(
+        &self,
+        endpoint: &str,
+        params: &Params,
+        key: &str,
+    ) -> Result<T, Error> {
+        let mut map = self.get_map(endpoint, params).await?;
+        take_field(&mut map, key)
+    }
+
+    /// GET and deserialize the value at `key`; missing or `null` yields `T::default()`.
+    pub(crate) async fn get_field_or_default<T: DeserializeOwned + Default>(
+        &self,
+        endpoint: &str,
+        params: &Params,
+        key: &str,
+    ) -> Result<T, Error> {
+        let mut map = self.get_map(endpoint, params).await?;
+        take_field_or_default(&mut map, key)
+    }
+
+    /// POST a JSON body and deserialize the value at `key` from the response.
+    pub(crate) async fn post_field<B: Serialize + ?Sized, T: DeserializeOwned>(
+        &self,
+        endpoint: &str,
+        params: &Params,
+        body: &B,
+        key: &str,
+    ) -> Result<T, Error> {
+        let url = self.endpoint_url(endpoint, params)?;
+        log::debug!("POST {}", redact_url(&url));
+        let resp = self
+            .http
+            .post(url)
+            .json(body)
+            .send()
+            .await?
+            .error_for_status()?;
+        let text = resp.text().await?;
+        let mut map = parse_envelope(&text)?.data;
+        take_field(&mut map, key)
+    }
+
+    /// Perform a GET request and return the raw response bytes.
+    ///
+    /// If the server returns a JSON error body instead of binary data it is parsed as an
+    /// API error.
+    pub(crate) async fn get_binary(
+        &self,
+        endpoint: &str,
+        params: &Params,
+    ) -> Result<bytes::Bytes, Error> {
+        let url = self.endpoint_url(endpoint, params)?;
+        Ok(self.load_binary_response(url).await?.bytes().await?)
+    }
+
+    /// Like [`Client::get_binary`] but returns the body as a chunk stream.
+    pub(crate) async fn get_binary_stream(
+        &self,
+        endpoint: &str,
+        params: &Params,
+    ) -> Result<ByteStream, Error> {
+        let url = self.endpoint_url(endpoint, params)?;
+        let resp = self.load_binary_response(url).await?;
+        Ok(Box::pin(resp.bytes_stream().map_err(Error::from)))
+    }
+
+    /// Query the server (via `ping`) and return the metadata from the response envelope.
+    ///
+    /// # Errors
+    /// Returns an error if the request fails or the server reports a failure.
+    pub async fn server_info(&self) -> Result<ServerInfo, Error> {
+        let url = self.endpoint_url("ping", &Params::new())?;
+        let inner = self.load_envelope(url).await?;
+        Ok(ServerInfo {
+            version: inner.version,
+            server_type: inner.server_type,
+            server_version: inner.server_version,
+            open_subsonic: inner.open_subsonic.unwrap_or(false),
+        })
+    }
+}
+
+/// Remove `key` from `map` and deserialize it; a missing key is a parse error.
+pub(crate) fn take_field<T: DeserializeOwned>(
+    map: &mut Map<String, Value>,
+    key: &str,
+) -> Result<T, Error> {
+    let value = map
+        .remove(key)
+        .ok_or_else(|| Error::Parse(format!("Missing '{key}' in response")))?;
+    serde_json::from_value(value).map_err(|e| Error::Parse(format!("Invalid '{key}': {e}")))
+}
+
+/// Remove `key` from `map` and deserialize it; missing or `null` yields `T::default()`.
+pub(crate) fn take_field_or_default<T: DeserializeOwned + Default>(
+    map: &mut Map<String, Value>,
+    key: &str,
+) -> Result<T, Error> {
+    match map.remove(key) {
+        None | Some(Value::Null) => Ok(T::default()),
+        Some(value) => {
+            serde_json::from_value(value).map_err(|e| Error::Parse(format!("Invalid '{key}': {e}")))
+        }
+    }
+}
+
+/// Truncate `text` to at most [`MAX_SNIPPET_CHARS`] characters, appending `…` if cut.
+fn truncate_snippet(text: &str) -> String {
+    match text.char_indices().nth(MAX_SNIPPET_CHARS) {
+        Some((idx, _)) => format!("{}…", &text[..idx]),
+        None => text.to_owned(),
+    }
+}
+
+/// Parse response text into the inner envelope; `status != "ok"` becomes [`Error::Api`].
+fn parse_envelope(text: &str) -> Result<SubsonicResponseInner, Error> {
+    let wrapper: SubsonicResponseWrapper = serde_json::from_str(text)
+        .map_err(|e| Error::Parse(format!("{e}: {}", truncate_snippet(text))))?;
+    let inner = wrapper.response;
+
+    if inner.status != "ok" {
+        let api_err = inner.error.map_or_else(
+            || SubsonicApiError {
+                code: 0,
+                message: "Unknown API error (status != ok but no error object)".into(),
+                help_url: None,
+            },
+            |e| SubsonicApiError {
+                code: e.code,
+                message: e.message.unwrap_or_default(),
+                help_url: e.help_url,
+            },
+        );
+        return Err(Error::Api(api_err));
+    }
+    Ok(inner)
+}
+
+/// Render a URL for logging with secret query values replaced by `<redacted>`.
+fn redact_url(url: &Url) -> String {
+    let mut out = url.clone();
+    redact_url_in_place(&mut out);
+    out.to_string()
+}
+
+/// Replace secret query values and any userinfo password in `url` with `<redacted>`.
+pub(crate) fn redact_url_in_place(url: &mut Url) {
+    if url.password().is_some() {
+        // Only fails for cannot-be-a-base URLs, which never carry credentials.
+        let _ = url.set_password(Some("redacted"));
+    }
+    if url.query().is_none() {
+        return;
+    }
+    let pairs: Vec<(String, String)> = url
+        .query_pairs()
+        .map(|(k, v)| {
+            let v = if SECRET_QUERY_KEYS.contains(&k.as_ref()) {
+                "<redacted>".to_owned()
+            } else {
+                v.into_owned()
+            };
+            (k.into_owned(), v)
+        })
+        .collect();
+    url.query_pairs_mut().clear().extend_pairs(pairs);
 }
 
 // ── Response deserialization helpers ────────────────────────────────────────
@@ -257,25 +408,21 @@ struct SubsonicResponseInner {
     status: String,
     /// Protocol version echoed by the server.
     #[serde(default)]
-    #[allow(dead_code)]
     version: Option<String>,
     /// Server implementation type (OpenSubsonic extension, e.g. `"navidrome"`).
     #[serde(rename = "type", default)]
-    #[allow(dead_code)]
     server_type: Option<String>,
     /// Server software version (OpenSubsonic extension).
     #[serde(rename = "serverVersion", default)]
-    #[allow(dead_code)]
     server_version: Option<String>,
     /// Whether the server supports OpenSubsonic extensions.
     #[serde(rename = "openSubsonic", default)]
-    #[allow(dead_code)]
     open_subsonic: Option<bool>,
     /// Present only when `status == "failed"`.
     error: Option<ApiErrorResponse>,
     /// All remaining fields (the actual endpoint-specific data).
     #[serde(flatten)]
-    data: serde_json::Map<String, serde_json::Value>,
+    data: Map<String, Value>,
 }
 
 /// Subsonic API error object embedded in the response.
@@ -296,7 +443,7 @@ mod tests {
     fn build_url_contains_required_params() {
         let client =
             Client::new("https://music.example.com", Auth::token("admin", "pass")).unwrap();
-        let url = client.build_url("ping", &[]).unwrap();
+        let url = client.endpoint_url("ping", &Params::new()).unwrap();
         let query: String = url.query().unwrap().to_string();
 
         assert_eq!(url.path(), "/rest/ping");
@@ -317,7 +464,7 @@ mod tests {
             Auth::token("admin", "pass"),
         )
         .unwrap();
-        let url = client.build_url("ping", &[]).unwrap();
+        let url = client.endpoint_url("ping", &Params::new()).unwrap();
 
         assert_eq!(url.path(), "/music/rest/ping");
     }
@@ -329,7 +476,7 @@ mod tests {
             Auth::token("admin", "pass"),
         )
         .unwrap();
-        let url = client.build_url("getArtists", &[]).unwrap();
+        let url = client.endpoint_url("getArtists", &Params::new()).unwrap();
 
         assert_eq!(url.path(), "/music/rest/getArtists");
     }
@@ -338,7 +485,9 @@ mod tests {
     fn build_url_with_extra_params() {
         let client =
             Client::new("https://music.example.com", Auth::plain("admin", "pass")).unwrap();
-        let url = client.build_url("getAlbum", &[("id", "42")]).unwrap();
+        let url = client
+            .endpoint_url("getAlbum", &Params::new().with("id", "42"))
+            .unwrap();
         let query = url.query().unwrap().to_string();
 
         assert!(query.contains("id=42"));
@@ -349,7 +498,7 @@ mod tests {
     fn build_url_api_key_auth() {
         let client =
             Client::new("https://music.example.com", Auth::api_key("my-api-key-123")).unwrap();
-        let url = client.build_url("ping", &[]).unwrap();
+        let url = client.endpoint_url("ping", &Params::new()).unwrap();
         let query = url.query().unwrap().to_string();
 
         assert_eq!(url.path(), "/rest/ping");
@@ -409,5 +558,103 @@ mod tests {
         let err = wrapper.response.error.unwrap();
         assert_eq!(err.code, 40);
         assert_eq!(err.message.as_deref(), Some("Wrong username or password"));
+    }
+
+    #[test]
+    fn take_field_missing_and_present() {
+        let mut m = Map::new();
+        m.insert("a".into(), serde_json::json!([1, 2]));
+        let v: Vec<i32> = take_field(&mut m, "a").unwrap();
+        assert_eq!(v, vec![1, 2]);
+        assert!(m.is_empty());
+        match take_field::<Vec<i32>>(&mut m, "a") {
+            Err(Error::Parse(msg)) => assert_eq!(msg, "Missing 'a' in response"),
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn take_field_or_default_handles_missing_and_null() {
+        let mut m = Map::new();
+        m.insert("n".into(), Value::Null);
+        m.insert("v".into(), serde_json::json!([3]));
+        assert!(
+            take_field_or_default::<Vec<i32>>(&mut m, "n")
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            take_field_or_default::<Vec<i32>>(&mut m, "zz")
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            take_field_or_default::<Vec<i32>>(&mut m, "v").unwrap(),
+            vec![3]
+        );
+        m.insert("bad".into(), serde_json::json!("x"));
+        assert!(take_field_or_default::<Vec<i32>>(&mut m, "bad").is_err());
+    }
+
+    #[test]
+    fn envelope_error_includes_help_url() {
+        let json = r#"{"subsonic-response":{"status":"failed","error":{"code":40,"message":"bad","helpUrl":"https://h/x"}}}"#;
+        match parse_envelope(json) {
+            Err(Error::Api(e)) => {
+                assert_eq!(e.code, 40);
+                assert_eq!(e.message, "bad");
+                assert_eq!(e.help_url.as_deref(), Some("https://h/x"));
+            }
+            _ => panic!("expected api error"),
+        }
+        let json = r#"{"subsonic-response":{"status":"failed"}}"#;
+        assert!(matches!(parse_envelope(json), Err(Error::Api(e)) if e.code == 0));
+    }
+
+    #[test]
+    fn envelope_ok_strips_known_fields() {
+        let json = r#"{"subsonic-response":{"status":"ok","version":"1.16.1","x":1}}"#;
+        let inner = parse_envelope(json).unwrap();
+        assert_eq!(inner.data.len(), 1);
+        assert_eq!(inner.version.as_deref(), Some("1.16.1"));
+    }
+
+    #[test]
+    fn parse_error_truncates_body() {
+        let body = "é".repeat(1000);
+        match parse_envelope(&body) {
+            Err(Error::Parse(msg)) => {
+                assert!(msg.ends_with('…'));
+                assert!(msg.chars().count() < 400);
+            }
+            _ => panic!("expected parse error"),
+        }
+        assert_eq!(truncate_snippet("short"), "short");
+        assert_eq!(truncate_snippet(&"a".repeat(256)).chars().count(), 256);
+    }
+
+    #[test]
+    fn redact_url_hides_secrets() {
+        let client = Client::new("https://h.example.com", Auth::token("admin", "pw")).unwrap();
+        let url = client
+            .endpoint_url("getAlbum", &Params::new().with("id", "42"))
+            .unwrap();
+        let r = redact_url(&url);
+        assert!(r.contains("u=admin") && r.contains("id=42"));
+        assert!(r.contains("t=%3Credacted%3E") || r.contains("t=<redacted>"));
+        let plain = Client::new("https://h", Auth::plain("a", "secret")).unwrap();
+        let r = redact_url(&plain.endpoint_url("ping", &Params::new()).unwrap());
+        assert!(!r.contains("736563726574"));
+        let key = Client::new("https://h", Auth::api_key("KEY123")).unwrap();
+        let r = redact_url(&key.endpoint_url("ping", &Params::new()).unwrap());
+        assert!(!r.contains("KEY123") && r.contains("apiKey="));
+        let base = format!("https://{}:{}@h", "admin", "hunter2");
+        let admin = Client::new(&base, Auth::api_key("k")).unwrap();
+        let r = redact_url(
+            &admin
+                .endpoint_url("changePassword", &Params::new().with("password", "newpw"))
+                .unwrap(),
+        );
+        assert!(!r.contains("hunter2") && !r.contains("newpw"));
     }
 }

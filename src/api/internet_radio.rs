@@ -6,19 +6,31 @@
 use crate::Client;
 use crate::data::InternetRadioStation;
 use crate::error::Error;
+use crate::params::Params;
+use serde::Deserialize;
+
+/// Wrapper for the nested `internetRadioStations.internetRadioStation` shape.
+#[derive(Deserialize, Default)]
+struct StationsWrapper {
+    #[serde(default, rename = "internetRadioStation")]
+    internet_radio_station: Vec<InternetRadioStation>,
+}
 
 impl Client {
     /// Get all internet radio stations.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/getinternetradiostations/>
     pub async fn get_internet_radio_stations(&self) -> Result<Vec<InternetRadioStation>, Error> {
-        let data = self.get_response("getInternetRadioStations", &[]).await?;
-        let stations = data
-            .get("internetRadioStations")
-            .and_then(|v| v.get("internetRadioStation"))
-            .cloned()
-            .unwrap_or_else(|| serde_json::Value::Array(vec![]));
-        Ok(serde_json::from_value(stations)?)
+        let wrapper: Option<StationsWrapper> = self
+            .get_field_or_default(
+                "getInternetRadioStations",
+                &Params::new(),
+                "internetRadioStations",
+            )
+            .await?;
+        Ok(wrapper
+            .map(|w| w.internet_radio_station)
+            .unwrap_or_default())
     }
 
     /// Create a new internet radio station.
@@ -30,13 +42,11 @@ impl Client {
         name: &str,
         home_page_url: Option<&str>,
     ) -> Result<(), Error> {
-        let mut params = vec![("streamUrl", stream_url), ("name", name)];
-        if let Some(hp) = home_page_url {
-            params.push(("homepageUrl", hp));
-        }
-        self.get_response("createInternetRadioStation", &params)
-            .await?;
-        Ok(())
+        let params = Params::new()
+            .with("streamUrl", stream_url)
+            .with("name", name)
+            .with_opt("homepageUrl", home_page_url);
+        self.get_unit("createInternetRadioStation", &params).await
     }
 
     /// Update an existing internet radio station.
@@ -49,21 +59,19 @@ impl Client {
         name: &str,
         home_page_url: Option<&str>,
     ) -> Result<(), Error> {
-        let mut params = vec![("id", id), ("streamUrl", stream_url), ("name", name)];
-        if let Some(hp) = home_page_url {
-            params.push(("homepageUrl", hp));
-        }
-        self.get_response("updateInternetRadioStation", &params)
-            .await?;
-        Ok(())
+        let params = Params::new()
+            .with("id", id)
+            .with("streamUrl", stream_url)
+            .with("name", name)
+            .with_opt("homepageUrl", home_page_url);
+        self.get_unit("updateInternetRadioStation", &params).await
     }
 
     /// Delete an internet radio station.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/deleteinternetradiostation/>
     pub async fn delete_internet_radio_station(&self, id: &str) -> Result<(), Error> {
-        self.get_response("deleteInternetRadioStation", &[("id", id)])
-            .await?;
-        Ok(())
+        self.get_unit("deleteInternetRadioStation", &Params::new().with("id", id))
+            .await
     }
 }

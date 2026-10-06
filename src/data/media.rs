@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 // all return binary data — no data types needed beyond bytes::Bytes.
 
 /// Lyrics for a song (legacy, unstructured).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Lyrics {
     /// The lyrics text.

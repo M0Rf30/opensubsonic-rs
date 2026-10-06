@@ -12,13 +12,13 @@
 //! - **Plain text** (legacy, pre-1.13.0): sends the password as `p=enc:<hex>`.
 
 use md5::{Digest, Md5};
-use rand::Rng;
+use rand::RngExt;
 
 /// Authentication configuration for Subsonic API requests.
 ///
 /// Each variant carries all the credentials needed to authenticate a request,
 /// including the username when applicable.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Auth {
     /// API key authentication (OpenSubsonic extension).
     ///
@@ -47,6 +47,27 @@ pub enum Auth {
         /// The user's plaintext password.
         password: String,
     },
+}
+
+impl std::fmt::Debug for Auth {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Auth::ApiKey { .. } => f
+                .debug_struct("ApiKey")
+                .field("api_key", &"<redacted>")
+                .finish(),
+            Auth::Token { username, .. } => f
+                .debug_struct("Token")
+                .field("username", username)
+                .field("password", &"<redacted>")
+                .finish(),
+            Auth::Plain { username, .. } => f
+                .debug_struct("Plain")
+                .field("username", username)
+                .field("password", &"<redacted>")
+                .finish(),
+        }
+    }
 }
 
 impl Auth {
@@ -134,7 +155,13 @@ fn compute_token(password: &str, salt: &str) -> String {
 
 /// Encode bytes as a lowercase hex string.
 fn hex_encode(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        out.push(char::from(HEX[usize::from(b >> 4)]));
+        out.push(char::from(HEX[usize::from(b & 0x0f)]));
+    }
+    out
 }
 
 #[cfg(test)]
@@ -200,5 +227,21 @@ mod tests {
         let p2 = auth.params();
         // Extremely unlikely to collide.
         assert_ne!(p1[1].1, p2[1].1);
+    }
+
+    #[test]
+    fn debug_redacts_secrets() {
+        let d = format!("{:?}", Auth::token("alice", "hunter2"));
+        assert!(d.contains("alice") && d.contains("<redacted>") && !d.contains("hunter2"));
+        let d = format!("{:?}", Auth::plain("bob", "hunter2"));
+        assert!(!d.contains("hunter2"));
+        let d = format!("{:?}", Auth::api_key("topsecret"));
+        assert!(d.contains("<redacted>") && !d.contains("topsecret"));
+    }
+
+    #[test]
+    fn hex_encode_works() {
+        assert_eq!(hex_encode(&[0x00, 0xab, 0xff, 0x05]), "00abff05");
+        assert_eq!(hex_encode(&[]), "");
     }
 }

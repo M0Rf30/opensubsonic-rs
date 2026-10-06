@@ -6,6 +6,22 @@
 use crate::Client;
 use crate::data::{PodcastChannel, PodcastEpisode};
 use crate::error::Error;
+use crate::params::Params;
+use serde::Deserialize;
+
+/// Wrapper for the nested `podcasts.channel` response shape.
+#[derive(Deserialize, Default)]
+struct ChannelsWrapper {
+    #[serde(default)]
+    channel: Vec<PodcastChannel>,
+}
+
+/// Wrapper for the nested `newestPodcasts.episode` response shape.
+#[derive(Deserialize, Default)]
+struct NewestWrapper {
+    #[serde(default)]
+    episode: Vec<PodcastEpisode>,
+}
 
 impl Client {
     /// Get all podcast channels.
@@ -18,21 +34,13 @@ impl Client {
         include_episodes: Option<bool>,
         id: Option<&str>,
     ) -> Result<Vec<PodcastChannel>, Error> {
-        let mut params = Vec::new();
-        if let Some(ie) = include_episodes {
-            params.push(("includeEpisodes", ie.to_string()));
-        }
-        if let Some(id_val) = id {
-            params.push(("id", id_val.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        let data = self.get_response("getPodcasts", &param_refs).await?;
-        let channels = data
-            .get("podcasts")
-            .and_then(|v| v.get("channel"))
-            .cloned()
-            .unwrap_or_else(|| serde_json::Value::Array(vec![]));
-        Ok(serde_json::from_value(channels)?)
+        let params = Params::new()
+            .with_opt("includeEpisodes", include_episodes)
+            .with_opt("id", id);
+        let wrapper: Option<ChannelsWrapper> = self
+            .get_field_or_default("getPodcasts", &params, "podcasts")
+            .await?;
+        Ok(wrapper.map(|w| w.channel).unwrap_or_default())
     }
 
     /// Get the newest podcast episodes.
@@ -42,74 +50,61 @@ impl Client {
         &self,
         count: Option<i32>,
     ) -> Result<Vec<PodcastEpisode>, Error> {
-        let mut params = Vec::new();
-        if let Some(c) = count {
-            params.push(("count", c.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        let data = self.get_response("getNewestPodcasts", &param_refs).await?;
-        let episodes = data
-            .get("newestPodcasts")
-            .and_then(|v| v.get("episode"))
-            .cloned()
-            .unwrap_or_else(|| serde_json::Value::Array(vec![]));
-        Ok(serde_json::from_value(episodes)?)
+        let params = Params::new().with_opt("count", count);
+        let wrapper: Option<NewestWrapper> = self
+            .get_field_or_default("getNewestPodcasts", &params, "newestPodcasts")
+            .await?;
+        Ok(wrapper.map(|w| w.episode).unwrap_or_default())
     }
 
     /// Get a specific podcast episode (OpenSubsonic extension).
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/getpodcastepisode/>
     pub async fn get_podcast_episode(&self, id: &str) -> Result<PodcastEpisode, Error> {
-        let data = self
-            .get_response("getPodcastEpisode", &[("id", id)])
-            .await?;
-        let episode = data
-            .get("podcastEpisode")
-            .ok_or_else(|| Error::Parse("Missing 'podcastEpisode' in response".into()))?;
-        Ok(serde_json::from_value(episode.clone())?)
+        self.get_field(
+            "getPodcastEpisode",
+            &Params::new().with("id", id),
+            "podcastEpisode",
+        )
+        .await
     }
 
     /// Tell the server to check for new podcast episodes.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/refreshpodcasts/>
     pub async fn refresh_podcasts(&self) -> Result<(), Error> {
-        self.get_response("refreshPodcasts", &[]).await?;
-        Ok(())
+        self.get_unit("refreshPodcasts", &Params::new()).await
     }
 
     /// Add a new podcast channel (by feed URL).
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/createpodcastchannel/>
     pub async fn create_podcast_channel(&self, url: &str) -> Result<(), Error> {
-        self.get_response("createPodcastChannel", &[("url", url)])
-            .await?;
-        Ok(())
+        self.get_unit("createPodcastChannel", &Params::new().with("url", url))
+            .await
     }
 
     /// Delete a podcast channel.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/deletepodcastchannel/>
     pub async fn delete_podcast_channel(&self, id: &str) -> Result<(), Error> {
-        self.get_response("deletePodcastChannel", &[("id", id)])
-            .await?;
-        Ok(())
+        self.get_unit("deletePodcastChannel", &Params::new().with("id", id))
+            .await
     }
 
     /// Delete a podcast episode.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/deletepodcastepisode/>
     pub async fn delete_podcast_episode(&self, id: &str) -> Result<(), Error> {
-        self.get_response("deletePodcastEpisode", &[("id", id)])
-            .await?;
-        Ok(())
+        self.get_unit("deletePodcastEpisode", &Params::new().with("id", id))
+            .await
     }
 
     /// Tell the server to download a podcast episode.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/downloadpodcastepisode/>
     pub async fn download_podcast_episode(&self, id: &str) -> Result<(), Error> {
-        self.get_response("downloadPodcastEpisode", &[("id", id)])
-            .await?;
-        Ok(())
+        self.get_unit("downloadPodcastEpisode", &Params::new().with("id", id))
+            .await
     }
 }

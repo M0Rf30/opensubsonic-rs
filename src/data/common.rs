@@ -5,6 +5,20 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Metadata about the server, taken from the response envelope of `ping`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerInfo {
+    /// Subsonic REST protocol version supported by the server.
+    pub version: Option<String>,
+    /// Server implementation name, e.g. `"navidrome"` (OpenSubsonic).
+    pub server_type: Option<String>,
+    /// Server software version (OpenSubsonic).
+    pub server_version: Option<String>,
+    /// Whether the server advertises OpenSubsonic support.
+    pub open_subsonic: bool,
+}
+
 /// A genre.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -444,7 +458,9 @@ pub struct Artist {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Work {
+    /// Work name.
     pub name: String,
+    /// MusicBrainz ID of the work.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub music_brainz_id: Option<String>,
 }
@@ -453,9 +469,12 @@ pub struct Work {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Movement {
+    /// Movement name.
     pub name: String,
+    /// Movement number.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub number: Option<i32>,
+    /// Total number of movements in the work.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub count: Option<i32>,
 }

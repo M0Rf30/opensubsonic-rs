@@ -6,33 +6,33 @@
 use crate::Client;
 use crate::data::ChatMessage;
 use crate::error::Error;
+use crate::params::Params;
+use serde::Deserialize;
+
+/// Wrapper for the nested `chatMessages.chatMessage` response shape.
+#[derive(Deserialize, Default)]
+struct MessagesWrapper {
+    #[serde(default, rename = "chatMessage")]
+    chat_message: Vec<ChatMessage>,
+}
 
 impl Client {
     /// Get chat messages.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/getchatmessages/>
     pub async fn get_chat_messages(&self, since: Option<i64>) -> Result<Vec<ChatMessage>, Error> {
-        let mut params = Vec::new();
-        let since_str;
-        if let Some(s) = since {
-            since_str = s.to_string();
-            params.push(("since", since_str.as_str()));
-        }
-        let data = self.get_response("getChatMessages", &params).await?;
-        let messages = data
-            .get("chatMessages")
-            .and_then(|v| v.get("chatMessage"))
-            .cloned()
-            .unwrap_or_else(|| serde_json::Value::Array(vec![]));
-        Ok(serde_json::from_value(messages)?)
+        let params = Params::new().with_opt("since", since);
+        let wrapper: Option<MessagesWrapper> = self
+            .get_field_or_default("getChatMessages", &params, "chatMessages")
+            .await?;
+        Ok(wrapper.map(|w| w.chat_message).unwrap_or_default())
     }
 
     /// Add a chat message.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/addchatmessage/>
     pub async fn add_chat_message(&self, message: &str) -> Result<(), Error> {
-        self.get_response("addChatMessage", &[("message", message)])
-            .await?;
-        Ok(())
+        self.get_unit("addChatMessage", &Params::new().with("message", message))
+            .await
     }
 }

@@ -9,6 +9,7 @@ use std::fmt;
 ///
 /// See <https://www.subsonic.org/pages/api.jsp> for the full list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SubsonicErrorCode {
     /// A generic error (code 0).
     Generic = 0,
@@ -60,6 +61,12 @@ impl SubsonicErrorCode {
             70 => Some(Self::NotFound),
             _ => None,
         }
+    }
+
+    /// The numeric protocol code for this error.
+    #[must_use]
+    pub fn code(self) -> i32 {
+        self as i32
     }
 }
 
@@ -118,6 +125,7 @@ impl std::error::Error for SubsonicApiError {}
 
 /// All possible errors that can occur when using this client.
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Error {
     /// An HTTP request failed at the transport level.
     Http(reqwest::Error),
@@ -154,8 +162,22 @@ impl std::error::Error for Error {
     }
 }
 
+impl Error {
+    /// If this is an [`Error::Api`] with a known Subsonic error code, return it.
+    pub fn api_error_code(&self) -> Option<SubsonicErrorCode> {
+        match self {
+            Error::Api(e) => e.error_code(),
+            _ => None,
+        }
+    }
+}
+
 impl From<reqwest::Error> for Error {
-    fn from(err: reqwest::Error) -> Self {
+    fn from(mut err: reqwest::Error) -> Self {
+        // reqwest embeds the request URL in its errors; strip credentials from it.
+        if let Some(url) = err.url_mut() {
+            crate::client::redact_url_in_place(url);
+        }
         Error::Http(err)
     }
 }

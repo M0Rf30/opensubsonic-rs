@@ -6,20 +6,32 @@
 use crate::Client;
 use crate::data::{JukeboxPlaylist, JukeboxStatus};
 use crate::error::Error;
+use crate::params::Params;
 
 /// Jukebox control action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JukeboxAction {
+    /// Return the full jukebox playlist (`get`).
     Get,
+    /// Return the current jukebox status (`status`).
     Status,
+    /// Replace the playlist with the given song ids (`set`).
     Set,
+    /// Start playback (`start`).
     Start,
+    /// Stop playback (`stop`).
     Stop,
+    /// Skip to the track at a given index/offset (`skip`).
     Skip,
+    /// Append the given song ids to the playlist (`add`).
     Add,
+    /// Clear the playlist (`clear`).
     Clear,
+    /// Remove the track at a given index (`remove`).
     Remove,
+    /// Shuffle the playlist (`shuffle`).
     Shuffle,
+    /// Set the playback gain (`setGain`).
     SetGain,
 }
 
@@ -62,37 +74,23 @@ impl Client {
         ids: &[&str],
         gain: Option<f64>,
     ) -> Result<JukeboxResult, Error> {
-        let mut params = vec![("action", action.as_str().to_string())];
-        if let Some(idx) = index {
-            params.push(("index", idx.to_string()));
-        }
-        if let Some(off) = offset {
-            params.push(("offset", off.to_string()));
-        }
-        for id in ids {
-            params.push(("id", id.to_string()));
-        }
-        if let Some(g) = gain {
-            params.push(("gain", g.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        let data = self.get_response("jukeboxControl", &param_refs).await?;
-
+        let params = Params::new()
+            .with("action", action.as_str())
+            .with_opt("index", index)
+            .with_opt("offset", offset)
+            .with_all("id", ids)
+            .with_opt("gain", gain);
         // The "get" action returns jukeboxPlaylist; all others return jukeboxStatus.
         if action == JukeboxAction::Get {
-            let playlist = data
-                .get("jukeboxPlaylist")
-                .ok_or_else(|| Error::Parse("Missing 'jukeboxPlaylist' in response".into()))?;
-            Ok(JukeboxResult::Playlist(serde_json::from_value(
-                playlist.clone(),
-            )?))
+            Ok(JukeboxResult::Playlist(
+                self.get_field("jukeboxControl", &params, "jukeboxPlaylist")
+                    .await?,
+            ))
         } else {
-            let status = data
-                .get("jukeboxStatus")
-                .ok_or_else(|| Error::Parse("Missing 'jukeboxStatus' in response".into()))?;
-            Ok(JukeboxResult::Status(serde_json::from_value(
-                status.clone(),
-            )?))
+            Ok(JukeboxResult::Status(
+                self.get_field("jukeboxControl", &params, "jukeboxStatus")
+                    .await?,
+            ))
         }
     }
 }

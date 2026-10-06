@@ -6,19 +6,32 @@
 use crate::Client;
 use crate::data::{AlbumId3, ArtistId3, Child, NowPlayingEntry};
 use crate::error::Error;
+use crate::params::Params;
+
+use super::browsing::nested_list;
 
 /// Album list ordering type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AlbumListType {
+    /// Random albums.
     Random,
+    /// Most recently added albums.
     Newest,
+    /// Highest rated albums.
     Highest,
+    /// Most frequently played albums.
     Frequent,
+    /// Most recently played albums.
     Recent,
+    /// Albums sorted alphabetically by name.
     AlphabeticalByName,
+    /// Albums sorted alphabetically by artist name.
     AlphabeticalByArtist,
+    /// Starred albums.
     Starred,
+    /// Albums in a given year range (`fromYear`/`toYear`).
     ByYear,
+    /// Albums of a given genre (`genre`).
     ByGenre,
 }
 
@@ -54,33 +67,16 @@ impl Client {
         genre: Option<&str>,
         music_folder_id: Option<&str>,
     ) -> Result<Vec<Child>, Error> {
-        let mut params = vec![("type", list_type.as_str().to_string())];
-        if let Some(s) = size {
-            params.push(("size", s.to_string()));
-        }
-        if let Some(o) = offset {
-            params.push(("offset", o.to_string()));
-        }
-        if let Some(y) = from_year {
-            params.push(("fromYear", y.to_string()));
-        }
-        if let Some(y) = to_year {
-            params.push(("toYear", y.to_string()));
-        }
-        if let Some(g) = genre {
-            params.push(("genre", g.to_string()));
-        }
-        if let Some(id) = music_folder_id {
-            params.push(("musicFolderId", id.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        let data = self.get_response("getAlbumList", &param_refs).await?;
-        let albums = data
-            .get("albumList")
-            .and_then(|v| v.get("album"))
-            .cloned()
-            .unwrap_or_else(|| serde_json::Value::Array(vec![]));
-        Ok(serde_json::from_value(albums)?)
+        let params = Params::new()
+            .with("type", list_type.as_str())
+            .with_opt("size", size)
+            .with_opt("offset", offset)
+            .with_opt("fromYear", from_year)
+            .with_opt("toYear", to_year)
+            .with_opt("genre", genre)
+            .with_opt("musicFolderId", music_folder_id);
+        let mut data = self.get_map("getAlbumList", &params).await?;
+        nested_list(&mut data, "albumList", "album")
     }
 
     /// Get a list of albums (ID3-based).
@@ -97,33 +93,16 @@ impl Client {
         genre: Option<&str>,
         music_folder_id: Option<&str>,
     ) -> Result<Vec<AlbumId3>, Error> {
-        let mut params = vec![("type", list_type.as_str().to_string())];
-        if let Some(s) = size {
-            params.push(("size", s.to_string()));
-        }
-        if let Some(o) = offset {
-            params.push(("offset", o.to_string()));
-        }
-        if let Some(y) = from_year {
-            params.push(("fromYear", y.to_string()));
-        }
-        if let Some(y) = to_year {
-            params.push(("toYear", y.to_string()));
-        }
-        if let Some(g) = genre {
-            params.push(("genre", g.to_string()));
-        }
-        if let Some(id) = music_folder_id {
-            params.push(("musicFolderId", id.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        let data = self.get_response("getAlbumList2", &param_refs).await?;
-        let albums = data
-            .get("albumList2")
-            .and_then(|v| v.get("album"))
-            .cloned()
-            .unwrap_or_else(|| serde_json::Value::Array(vec![]));
-        Ok(serde_json::from_value(albums)?)
+        let params = Params::new()
+            .with("type", list_type.as_str())
+            .with_opt("size", size)
+            .with_opt("offset", offset)
+            .with_opt("fromYear", from_year)
+            .with_opt("toYear", to_year)
+            .with_opt("genre", genre)
+            .with_opt("musicFolderId", music_folder_id);
+        let mut data = self.get_map("getAlbumList2", &params).await?;
+        nested_list(&mut data, "albumList2", "album")
     }
 
     /// Get random songs.
@@ -137,30 +116,14 @@ impl Client {
         to_year: Option<i32>,
         music_folder_id: Option<&str>,
     ) -> Result<Vec<Child>, Error> {
-        let mut params = Vec::new();
-        if let Some(s) = size {
-            params.push(("size", s.to_string()));
-        }
-        if let Some(g) = genre {
-            params.push(("genre", g.to_string()));
-        }
-        if let Some(y) = from_year {
-            params.push(("fromYear", y.to_string()));
-        }
-        if let Some(y) = to_year {
-            params.push(("toYear", y.to_string()));
-        }
-        if let Some(id) = music_folder_id {
-            params.push(("musicFolderId", id.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        let data = self.get_response("getRandomSongs", &param_refs).await?;
-        let songs = data
-            .get("randomSongs")
-            .and_then(|v| v.get("song"))
-            .cloned()
-            .unwrap_or_else(|| serde_json::Value::Array(vec![]));
-        Ok(serde_json::from_value(songs)?)
+        let params = Params::new()
+            .with_opt("size", size)
+            .with_opt("genre", genre)
+            .with_opt("fromYear", from_year)
+            .with_opt("toYear", to_year)
+            .with_opt("musicFolderId", music_folder_id);
+        let mut data = self.get_map("getRandomSongs", &params).await?;
+        nested_list(&mut data, "randomSongs", "song")
     }
 
     /// Get songs by genre.
@@ -173,37 +136,21 @@ impl Client {
         offset: Option<i32>,
         music_folder_id: Option<&str>,
     ) -> Result<Vec<Child>, Error> {
-        let mut params = vec![("genre", genre.to_string())];
-        if let Some(c) = count {
-            params.push(("count", c.to_string()));
-        }
-        if let Some(o) = offset {
-            params.push(("offset", o.to_string()));
-        }
-        if let Some(id) = music_folder_id {
-            params.push(("musicFolderId", id.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        let data = self.get_response("getSongsByGenre", &param_refs).await?;
-        let songs = data
-            .get("songsByGenre")
-            .and_then(|v| v.get("song"))
-            .cloned()
-            .unwrap_or_else(|| serde_json::Value::Array(vec![]));
-        Ok(serde_json::from_value(songs)?)
+        let params = Params::new()
+            .with("genre", genre)
+            .with_opt("count", count)
+            .with_opt("offset", offset)
+            .with_opt("musicFolderId", music_folder_id);
+        let mut data = self.get_map("getSongsByGenre", &params).await?;
+        nested_list(&mut data, "songsByGenre", "song")
     }
 
     /// Get what is currently being played by all users.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/getnowplaying/>
     pub async fn get_now_playing(&self) -> Result<Vec<NowPlayingEntry>, Error> {
-        let data = self.get_response("getNowPlaying", &[]).await?;
-        let entries = data
-            .get("nowPlaying")
-            .and_then(|v| v.get("entry"))
-            .cloned()
-            .unwrap_or_else(|| serde_json::Value::Array(vec![]));
-        Ok(serde_json::from_value(entries)?)
+        let mut data = self.get_map("getNowPlaying", &Params::new()).await?;
+        nested_list(&mut data, "nowPlaying", "entry")
     }
 
     /// Get starred songs, albums and artists (folder-based).
@@ -213,15 +160,8 @@ impl Client {
         &self,
         music_folder_id: Option<&str>,
     ) -> Result<StarredContent, Error> {
-        let mut params = Vec::new();
-        if let Some(id) = music_folder_id {
-            params.push(("musicFolderId", id));
-        }
-        let data = self.get_response("getStarred", &params).await?;
-        let starred = data
-            .get("starred")
-            .ok_or_else(|| Error::Parse("Missing 'starred' in response".into()))?;
-        Ok(serde_json::from_value(starred.clone())?)
+        let params = Params::new().with_opt("musicFolderId", music_folder_id);
+        self.get_field("getStarred", &params, "starred").await
     }
 
     /// Get starred songs, albums and artists (ID3-based).
@@ -231,15 +171,8 @@ impl Client {
         &self,
         music_folder_id: Option<&str>,
     ) -> Result<Starred2Content, Error> {
-        let mut params = Vec::new();
-        if let Some(id) = music_folder_id {
-            params.push(("musicFolderId", id));
-        }
-        let data = self.get_response("getStarred2", &params).await?;
-        let starred = data
-            .get("starred2")
-            .ok_or_else(|| Error::Parse("Missing 'starred2' in response".into()))?;
-        Ok(serde_json::from_value(starred.clone())?)
+        let params = Params::new().with_opt("musicFolderId", music_folder_id);
+        self.get_field("getStarred2", &params, "starred2").await
     }
 }
 

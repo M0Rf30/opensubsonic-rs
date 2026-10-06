@@ -86,9 +86,10 @@ mod auth;
 mod client;
 pub mod data;
 mod error;
+mod params;
 
 pub use auth::Auth;
-pub use client::Client;
+pub use client::{ByteStream, Client};
 pub use error::{Error, SubsonicApiError, SubsonicErrorCode};
 
 // Re-export commonly used API types that live in api modules.

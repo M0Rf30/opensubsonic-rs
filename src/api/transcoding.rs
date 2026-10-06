@@ -2,131 +2,130 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Transcoding API endpoints (OpenSubsonic extension).
+//!
+//! The flow is two steps: call [`Client::get_transcode_decision`] with the
+//! client's capabilities ([`ClientInfo`]) to learn whether the media can be
+//! direct-played or must be transcoded, then pass the returned
+//! `transcodeParams` to one of the `get_transcode_stream*` methods.
 
 use bytes::Bytes;
 use url::Url;
 
+use crate::ByteStream;
 use crate::Client;
-use crate::data::TranscodeDecision;
+use crate::data::{ClientInfo, TranscodeDecision, TranscodeMediaType};
 use crate::error::Error;
+use crate::params::Params;
+
+/// Shared query parameters for `getTranscodeStream` (order: mediaId, mediaType, offset, transcodeParams).
+fn stream_params(
+    media_id: &str,
+    media_type: TranscodeMediaType,
+    transcode_params: &str,
+    offset: Option<i32>,
+) -> Params {
+    Params::new()
+        .with("mediaId", media_id)
+        .with("mediaType", media_type)
+        .with_opt("offset", offset)
+        .with("transcodeParams", transcode_params)
+}
 
 impl Client {
-    /// Get a transcode decision for a song (OpenSubsonic extension).
+    /// Get a transcode decision for a media item (OpenSubsonic extension).
     ///
-    /// This endpoint uses POST with a JSON body containing client info.
+    /// Sends a `POST` with the `mediaId`/`mediaType` query parameters and the
+    /// [`ClientInfo`] as a JSON body. Bitrates in `client_info` are in bits
+    /// per second. If the decision says transcoding is needed, pass its
+    /// `transcode_params` unchanged to [`Client::get_transcode_stream`] (or the
+    /// URL/chunked variants).
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/gettranscodedecision/>
     pub async fn get_transcode_decision(
         &self,
-        id: &str,
-        max_bit_rate: Option<i32>,
-        format: Option<&str>,
-        client_info: Option<&crate::data::ClientInfo>,
+        media_id: &str,
+        media_type: TranscodeMediaType,
+        client_info: &ClientInfo,
     ) -> Result<TranscodeDecision, Error> {
-        // This is a POST endpoint with query params for id/maxBitRate/format
-        // and JSON body for clientInfo. For simplicity, we use GET params when no body.
-        let mut params = vec![("id", id.to_string())];
-        if let Some(br) = max_bit_rate {
-            params.push(("maxBitRate", br.to_string()));
-        }
-        if let Some(f) = format {
-            params.push(("format", f.to_string()));
-        }
-
-        if let Some(info) = client_info {
-            // Build URL with params and do POST with JSON body.
-            let param_refs: Vec<(&str, &str)> =
-                params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-            let url = self.build_url("getTranscodeDecision", &param_refs)?;
-            log::debug!("POST {url}");
-            let resp = self
-                .http
-                .post(url)
-                .json(info)
-                .send()
-                .await?
-                .error_for_status()?;
-            let text = resp.text().await?;
-            let wrapper: serde_json::Value =
-                serde_json::from_str(&text).map_err(|e| Error::Parse(format!("{e}: {text}")))?;
-            let inner = wrapper
-                .get("subsonic-response")
-                .ok_or_else(|| Error::Parse("Missing subsonic-response".into()))?;
-            let status = inner.get("status").and_then(|s| s.as_str()).unwrap_or("");
-            if status != "ok" {
-                let code = inner
-                    .get("error")
-                    .and_then(|e| e.get("code"))
-                    .and_then(|c| c.as_i64())
-                    .unwrap_or(0) as i32;
-                let msg = inner
-                    .get("error")
-                    .and_then(|e| e.get("message"))
-                    .and_then(|m| m.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                return Err(Error::Api(crate::error::SubsonicApiError {
-                    code,
-                    message: msg,
-                    help_url: None,
-                }));
-            }
-            let decision = inner
-                .get("transcodeDecision")
-                .ok_or_else(|| Error::Parse("Missing 'transcodeDecision' in response".into()))?;
-            Ok(serde_json::from_value(decision.clone())?)
-        } else {
-            let param_refs: Vec<(&str, &str)> =
-                params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-            let data = self
-                .get_response("getTranscodeDecision", &param_refs)
-                .await?;
-            let decision = data
-                .get("transcodeDecision")
-                .ok_or_else(|| Error::Parse("Missing 'transcodeDecision' in response".into()))?;
-            Ok(serde_json::from_value(decision.clone())?)
-        }
+        let params = Params::new()
+            .with("mediaId", media_id)
+            .with("mediaType", media_type);
+        self.post_field(
+            "getTranscodeDecision",
+            &params,
+            client_info,
+            "transcodeDecision",
+        )
+        .await
     }
 
-    /// Get a transcoded stream URL (OpenSubsonic extension).
+    /// Build the URL of a transcoded stream (OpenSubsonic extension).
     ///
-    /// Returns the URL for streaming transcoded audio. Does not make an HTTP request.
+    /// Does not make an HTTP request. `transcode_params` must be the opaque
+    /// value from [`TranscodeDecision::transcode_params`], passed verbatim;
+    /// never construct it yourself. `offset` is the start time in seconds.
     ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/gettranscodestream/>
     pub fn get_transcode_stream_url(
         &self,
-        id: &str,
-        max_bit_rate: Option<i32>,
-        format: Option<&str>,
+        media_id: &str,
+        media_type: TranscodeMediaType,
+        transcode_params: &str,
+        offset: Option<i32>,
     ) -> Result<Url, Error> {
-        let mut params = vec![("id", id.to_string())];
-        if let Some(br) = max_bit_rate {
-            params.push(("maxBitRate", br.to_string()));
-        }
-        if let Some(f) = format {
-            params.push(("format", f.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        self.build_url("getTranscodeStream", &param_refs)
+        let params = stream_params(media_id, media_type, transcode_params, offset);
+        self.endpoint_url("getTranscodeStream", &params)
     }
 
     /// Get a transcoded stream as raw bytes (OpenSubsonic extension).
     ///
-    /// See <https://opensubsonic.netlify.app/docs/endpoints/gettranscodestream/>
+    /// See [`Client::get_transcode_stream_url`] for argument semantics.
     pub async fn get_transcode_stream(
         &self,
-        id: &str,
-        max_bit_rate: Option<i32>,
-        format: Option<&str>,
+        media_id: &str,
+        media_type: TranscodeMediaType,
+        transcode_params: &str,
+        offset: Option<i32>,
     ) -> Result<Bytes, Error> {
-        let mut params = vec![("id", id.to_string())];
-        if let Some(br) = max_bit_rate {
-            params.push(("maxBitRate", br.to_string()));
-        }
-        if let Some(f) = format {
-            params.push(("format", f.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        self.get_bytes("getTranscodeStream", &param_refs).await
+        let params = stream_params(media_id, media_type, transcode_params, offset);
+        self.get_binary("getTranscodeStream", &params).await
+    }
+
+    /// Get a transcoded stream as a chunked byte stream (OpenSubsonic extension).
+    ///
+    /// See [`Client::get_transcode_stream_url`] for argument semantics.
+    pub async fn get_transcode_stream_chunked(
+        &self,
+        media_id: &str,
+        media_type: TranscodeMediaType,
+        transcode_params: &str,
+        offset: Option<i32>,
+    ) -> Result<ByteStream, Error> {
+        let params = stream_params(media_id, media_type, transcode_params, offset);
+        self.get_binary_stream("getTranscodeStream", &params).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Auth;
+
+    #[test]
+    fn stream_url_params_in_order() {
+        let c = Client::new("http://localhost:4533", Auth::token("u", "p")).unwrap();
+        let url = c
+            .get_transcode_stream_url("123", TranscodeMediaType::Song, "0001-0005-004", Some(30))
+            .unwrap();
+        let q = url.query().unwrap();
+        let pos = |k: &str| q.find(k).unwrap_or_else(|| panic!("missing {k} in {q}"));
+        assert!(q.contains("mediaType=song"));
+        assert!(pos("mediaId=123") < pos("mediaType="));
+        assert!(pos("mediaType=") < pos("offset=30"));
+        assert!(pos("offset=30") < pos("transcodeParams=0001-0005-004"));
+        let url = c
+            .get_transcode_stream_url("1", TranscodeMediaType::Podcast, "x", None)
+            .unwrap();
+        assert!(!url.query().unwrap().contains("offset"));
     }
 }

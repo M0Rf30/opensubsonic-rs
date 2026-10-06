@@ -6,6 +6,14 @@
 use crate::Client;
 use crate::data::SonicMatch;
 use crate::error::Error;
+use crate::params::Params;
+
+/// Private wrapper for `{ "sonicMatch": [...] }` containers.
+#[derive(Default, serde::Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct Wrapper {
+    sonic_match: Vec<SonicMatch>,
+}
 
 impl Client {
     /// Get tracks sonically similar to the given song (OpenSubsonic, sonicSimilarity extension).
@@ -16,20 +24,11 @@ impl Client {
         id: &str,
         count: Option<i32>,
     ) -> Result<Vec<SonicMatch>, Error> {
-        let mut params = vec![("id", id.to_string())];
-        if let Some(c) = count {
-            params.push(("count", c.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        let data = self
-            .get_response("getSonicSimilarTracks", &param_refs)
+        let params = Params::new().with("id", id).with_opt("count", count);
+        let w: Wrapper = self
+            .get_field_or_default("getSonicSimilarTracks", &params, "sonicSimilarTracks")
             .await?;
-        let matches = data
-            .get("sonicSimilarTracks")
-            .and_then(|v| v.get("sonicMatch"))
-            .cloned()
-            .unwrap_or_else(|| serde_json::Value::Array(vec![]));
-        Ok(serde_json::from_value(matches)?)
+        Ok(w.sonic_match)
     }
 
     /// Find a path of sonically similar tracks between two songs
@@ -42,20 +41,13 @@ impl Client {
         end_song_id: &str,
         count: Option<i32>,
     ) -> Result<Vec<SonicMatch>, Error> {
-        let mut params = vec![
-            ("startSongId", start_song_id.to_string()),
-            ("endSongId", end_song_id.to_string()),
-        ];
-        if let Some(c) = count {
-            params.push(("count", c.to_string()));
-        }
-        let param_refs: Vec<(&str, &str)> = params.iter().map(|(k, v)| (*k, v.as_str())).collect();
-        let data = self.get_response("findSonicPath", &param_refs).await?;
-        let matches = data
-            .get("sonicPath")
-            .and_then(|v| v.get("sonicMatch"))
-            .cloned()
-            .unwrap_or_else(|| serde_json::Value::Array(vec![]));
-        Ok(serde_json::from_value(matches)?)
+        let params = Params::new()
+            .with("startSongId", start_song_id)
+            .with("endSongId", end_song_id)
+            .with_opt("count", count);
+        let w: Wrapper = self
+            .get_field_or_default("findSonicPath", &params, "sonicPath")
+            .await?;
+        Ok(w.sonic_match)
     }
 }
