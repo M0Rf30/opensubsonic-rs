@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-06
+
+### Changed
+
+- **Breaking:** endpoints with long lists of optional arguments now take an options struct
+  as their last argument. Every options type is `#[non_exhaustive]`, implements `Default`,
+  and has chainable setters, so new optional parameters won't be breaking changes:
+  - `search` → `SearchOptions`; `search2` → `Search2Options`; `search3` → `Search3Options`
+  - `get_album_list` / `get_album_list2` → `AlbumListOptions`
+  - `get_random_songs` → `RandomSongsOptions`; `get_songs_by_genre` → `SongsByGenreOptions`
+  - `stream`, `stream_chunked`, `stream_url` → `StreamOptions` (`stream_url` now also
+    supports `timeOffset` and `estimateContentLength`)
+  - `update_playlist` → `UpdatePlaylistOptions`; `jukebox_control` → `JukeboxOptions`
+  - `create_user(username, password, email, &CreateUserOptions)`,
+    `update_user(username, &UpdateUserOptions)`
+
+### Migration
+
+```rust
+// 0.5
+client.search3("q", None, None, None, None, Some(20), None, None).await?;
+// 0.6
+client.search3("q", &Search3Options::new().song_count(20)).await?;
+```
+
 ## [0.5.0] - 2026-10-06
 
 ### Added
@@ -112,7 +137,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive error handling
 - Full type definitions for all API responses
 
-[unreleased]: https://github.com/M0Rf30/opensubsonic-rs/compare/v0.5.0...HEAD
+[unreleased]: https://github.com/M0Rf30/opensubsonic-rs/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/M0Rf30/opensubsonic-rs/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/M0Rf30/opensubsonic-rs/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/M0Rf30/opensubsonic-rs/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/M0Rf30/opensubsonic-rs/compare/v0.2.0...v0.3.0

@@ -23,3 +23,10 @@ mod sonic_similarity;
 mod system;
 mod transcoding;
 mod user_management;
+
+pub use jukebox::JukeboxOptions;
+pub use lists::{AlbumListOptions, RandomSongsOptions, SongsByGenreOptions};
+pub use media_retrieval::StreamOptions;
+pub use playlists::UpdatePlaylistOptions;
+pub use searching::{Search2Options, Search3Options, SearchOptions};
+pub use user_management::{CreateUserOptions, UpdateUserOptions};

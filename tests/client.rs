@@ -310,7 +310,12 @@ async fn search3_typed_and_params() {
         .mount(&server)
         .await;
     let res = token_client(&server)
-        .search3("bohemian", Some(2), None, None, None, Some(10), None, None)
+        .search3(
+            "bohemian",
+            &opensubsonic::Search3Options::new()
+                .artist_count(2)
+                .song_count(10),
+        )
         .await
         .unwrap();
     assert_eq!(res.artist[0].name, "Queen");
@@ -408,11 +413,11 @@ async fn update_playlist_repeated_keys_in_order() {
     token_client(&server)
         .update_playlist(
             "p1",
-            Some("New name"),
-            None,
-            Some(true),
-            &["c", "a", "b"],
-            &[4, 0],
+            &opensubsonic::UpdatePlaylistOptions::new()
+                .name("New name")
+                .public(true)
+                .add_songs(["c", "a", "b"])
+                .remove_indexes([4, 0]),
         )
         .await
         .unwrap();

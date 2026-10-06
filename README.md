@@ -13,7 +13,7 @@ Supports **Subsonic API v1.16.1** and **OpenSubsonic extensions**. Works with [N
 ## Quick start
 
 ```rust
-use opensubsonic::{Client, Auth};
+use opensubsonic::{Auth, Client, Search3Options, StreamOptions};
 
 #[tokio::main]
 async fn main() -> Result<(), opensubsonic::Error> {
@@ -34,13 +34,15 @@ async fn main() -> Result<(), opensubsonic::Error> {
     }
 
     // Search for songs.
-    let results = client.search3("bohemian", None, None, None, None, None, None, None).await?;
+    let results = client
+        .search3("bohemian", &Search3Options::new().song_count(20))
+        .await?;
     for song in &results.song {
         println!("{} - {}", song.artist.as_deref().unwrap_or("?"), song.title);
     }
 
     // Get a streaming URL (no HTTP request, just builds the URL).
-    let url = client.stream_url("song-id-123", None, None)?;
+    let url = client.stream_url("song-id-123", &StreamOptions::new().max_bit_rate(320))?;
     println!("Stream: {url}");
 
     Ok(())
@@ -102,10 +104,32 @@ let client = Client::new("https://music.example.com", Auth::token("admin", "pass
 Some methods build URLs without making HTTP requests, useful for passing to audio players:
 
 ```rust
-let stream_url = client.stream_url("song-id", None, None)?;
+let stream_url = client.stream_url("song-id", &StreamOptions::new().format("opus"))?;
 let cover_url = client.cover_art_url("cover-id", Some(300))?;
 let hls_url = client.hls_url("video-id", None, None)?;
 ```
+
+## Optional parameters
+
+Endpoints with many optional parameters take an options struct as their last argument.
+Every options type implements `Default` and has chainable setters, so you only set what
+you need (`&Default::default()` uses server defaults):
+
+```rust
+use opensubsonic::{AlbumListOptions, AlbumListType, UpdatePlaylistOptions};
+
+let albums = client
+    .get_album_list2(AlbumListType::Newest, &AlbumListOptions::new().size(50))
+    .await?;
+
+client
+    .update_playlist("pl-1", &UpdatePlaylistOptions::new().name("Road trip").add_songs(["s1", "s2"]))
+    .await?;
+```
+
+Available: `SearchOptions`, `Search2Options`, `Search3Options`, `AlbumListOptions`,
+`RandomSongsOptions`, `SongsByGenreOptions`, `StreamOptions`, `UpdatePlaylistOptions`,
+`JukeboxOptions`, `CreateUserOptions`, `UpdateUserOptions`.
 
 ## Streaming without buffering
 
@@ -115,7 +139,7 @@ files use the `*_chunked` variants, which yield chunks as they arrive:
 ```rust
 use futures_util::StreamExt;
 
-let mut body = client.stream_chunked("song-id", None, None, None, None).await?;
+let mut body = client.stream_chunked("song-id", &StreamOptions::default()).await?;
 while let Some(chunk) = body.next().await {
     let chunk = chunk?;
     // write `chunk` to a file, an audio sink, …

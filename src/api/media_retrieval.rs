@@ -11,45 +11,74 @@ use crate::data::{Lyrics, LyricsList};
 use crate::error::Error;
 use crate::params::Params;
 
-/// Shared query parameters for `stream` and `stream_chunked`.
-fn stream_params(
-    id: &str,
-    max_bit_rate: Option<i32>,
-    format: Option<&str>,
-    time_offset: Option<i32>,
-    estimated_content_length: Option<bool>,
-) -> Params {
+/// Optional parameters for [`Client::stream`], [`Client::stream_chunked`] and
+/// [`Client::stream_url`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct StreamOptions {
+    /// Maximum bit rate in kbps (`maxBitRate`).
+    pub max_bit_rate: Option<i32>,
+    /// Preferred target format (`format`).
+    pub format: Option<String>,
+    /// Start offset in seconds, for video (`timeOffset`).
+    pub time_offset: Option<i32>,
+    /// Whether to estimate the content length (`estimateContentLength`).
+    pub estimate_content_length: Option<bool>,
+}
+
+impl StreamOptions {
+    /// Create empty options (all server defaults).
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set `maxBitRate` (kbps; 0 means no limit).
+    #[must_use]
+    pub fn max_bit_rate(mut self, v: i32) -> Self {
+        self.max_bit_rate = Some(v);
+        self
+    }
+
+    /// Set `format` (e.g. `mp3`, `opus`, or `raw`).
+    #[must_use]
+    pub fn format(mut self, v: impl Into<String>) -> Self {
+        self.format = Some(v.into());
+        self
+    }
+
+    /// Set `timeOffset` (seconds).
+    #[must_use]
+    pub fn time_offset(mut self, v: i32) -> Self {
+        self.time_offset = Some(v);
+        self
+    }
+
+    /// Set `estimateContentLength` (server estimates `Content-Length` for transcoded streams).
+    #[must_use]
+    pub fn estimate_content_length(mut self, v: bool) -> Self {
+        self.estimate_content_length = Some(v);
+        self
+    }
+}
+
+/// Shared query parameters for `stream`, `stream_chunked` and `stream_url`.
+fn stream_params(id: &str, options: &StreamOptions) -> Params {
     Params::new()
         .with("id", id)
-        .with_opt("maxBitRate", max_bit_rate)
-        .with_opt("format", format)
-        .with_opt("timeOffset", time_offset)
-        .with_opt("estimateContentLength", estimated_content_length)
+        .with_opt("maxBitRate", options.max_bit_rate)
+        .with_opt("format", options.format.as_deref())
+        .with_opt("timeOffset", options.time_offset)
+        .with_opt("estimateContentLength", options.estimate_content_length)
 }
 
 impl Client {
     /// Stream a song or video. Returns the raw bytes.
     ///
+    /// See [`StreamOptions`] for the optional parameters.
+    ///
     /// See <https://opensubsonic.netlify.app/docs/endpoints/stream/>
-    pub async fn stream(
-        &self,
-        id: &str,
-        max_bit_rate: Option<i32>,
-        format: Option<&str>,
-        time_offset: Option<i32>,
-        estimated_content_length: Option<bool>,
-    ) -> Result<Bytes, Error> {
-        self.get_binary(
-            "stream",
-            &stream_params(
-                id,
-                max_bit_rate,
-                format,
-                time_offset,
-                estimated_content_length,
-            ),
-        )
-        .await
+    pub async fn stream(&self, id: &str, options: &StreamOptions) -> Result<Bytes, Error> {
+        self.get_binary("stream", &stream_params(id, options)).await
     }
 
     /// Stream a song or video as a chunked byte stream.
@@ -61,7 +90,8 @@ impl Client {
     /// use futures_util::StreamExt;
     ///
     /// # async fn run(client: opensubsonic::Client) -> Result<(), opensubsonic::Error> {
-    /// let mut stream = client.stream_chunked("song-id", None, None, None, None).await?;
+    /// let opts = opensubsonic::StreamOptions::new();
+    /// let mut stream = client.stream_chunked("song-id", &opts).await?;
     /// while let Some(chunk) = stream.next().await {
     ///     let chunk = chunk?;
     ///     println!("got {} bytes", chunk.len());
@@ -74,38 +104,18 @@ impl Client {
     pub async fn stream_chunked(
         &self,
         id: &str,
-        max_bit_rate: Option<i32>,
-        format: Option<&str>,
-        time_offset: Option<i32>,
-        estimated_content_length: Option<bool>,
+        options: &StreamOptions,
     ) -> Result<crate::ByteStream, Error> {
-        self.get_binary_stream(
-            "stream",
-            &stream_params(
-                id,
-                max_bit_rate,
-                format,
-                time_offset,
-                estimated_content_length,
-            ),
-        )
-        .await
+        self.get_binary_stream("stream", &stream_params(id, options))
+            .await
     }
 
     /// Build a streaming URL for a song without making an HTTP request.
     ///
     /// Useful for passing to external audio players or download managers.
-    pub fn stream_url(
-        &self,
-        id: &str,
-        max_bit_rate: Option<i32>,
-        format: Option<&str>,
-    ) -> Result<Url, Error> {
-        let params = Params::new()
-            .with("id", id)
-            .with_opt("maxBitRate", max_bit_rate)
-            .with_opt("format", format);
-        self.endpoint_url("stream", &params)
+    /// See [`StreamOptions`] for the supported query parameters.
+    pub fn stream_url(&self, id: &str, options: &StreamOptions) -> Result<Url, Error> {
+        self.endpoint_url("stream", &stream_params(id, options))
     }
 
     /// Download a song or video. Returns raw bytes.
@@ -212,5 +222,36 @@ impl Client {
     pub async fn get_avatar(&self, username: &str) -> Result<Bytes, Error> {
         self.get_binary("getAvatar", &Params::new().with("username", username))
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stream_params_full() {
+        let o = StreamOptions::new()
+            .max_bit_rate(128)
+            .format("mp3")
+            .time_offset(30)
+            .estimate_content_length(true);
+        let p = stream_params("s1", &o);
+        assert_eq!(
+            p.iter().collect::<Vec<_>>(),
+            vec![
+                ("id", "s1"),
+                ("maxBitRate", "128"),
+                ("format", "mp3"),
+                ("timeOffset", "30"),
+                ("estimateContentLength", "true"),
+            ]
+        );
+    }
+
+    #[test]
+    fn stream_params_default() {
+        let p = stream_params("s1", &StreamOptions::new());
+        assert_eq!(p.iter().collect::<Vec<_>>(), vec![("id", "s1")]);
     }
 }

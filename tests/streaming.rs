@@ -29,7 +29,7 @@ async fn stream_chunked_yields_served_body() {
 
     let client = token_client(&server);
     let mut stream = client
-        .stream_chunked("song-1", None, None, None, None)
+        .stream_chunked("song-1", &opensubsonic::StreamOptions::default())
         .await
         .unwrap();
     let mut collected = Vec::new();
@@ -53,7 +53,10 @@ async fn stream_chunked_json_error_is_api_error() {
         .await;
 
     let client = token_client(&server);
-    let err = match client.stream_chunked("nope", None, None, None, None).await {
+    let err = match client
+        .stream_chunked("nope", &opensubsonic::StreamOptions::default())
+        .await
+    {
         Ok(_) => panic!("expected error"),
         Err(e) => e,
     };

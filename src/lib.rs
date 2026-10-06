@@ -8,7 +8,7 @@
 //! # Quick start
 //!
 //! ```no_run
-//! use opensubsonic::{Client, Auth};
+//! use opensubsonic::{Auth, Client, Search3Options, StreamOptions};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), opensubsonic::Error> {
@@ -36,13 +36,15 @@
 //!     }
 //!
 //!     // Search for songs.
-//!     let results = client.search3("bohemian", None, None, None, None, None, None, None).await?;
+//!     let results = client
+//!         .search3("bohemian", &Search3Options::new().song_count(20))
+//!         .await?;
 //!     for song in &results.song {
 //!         println!("{} - {}", song.artist.as_deref().unwrap_or("?"), song.title);
 //!     }
 //!
 //!     // Get a streaming URL.
-//!     let url = client.stream_url("song-id-123", None, None)?;
+//!     let url = client.stream_url("song-id-123", &StreamOptions::new().max_bit_rate(320))?;
 //!     println!("Stream: {url}");
 //!
 //!     Ok(())
@@ -95,3 +97,8 @@ pub use error::{Error, SubsonicApiError, SubsonicErrorCode};
 // Re-export commonly used API types that live in api modules.
 pub use api::jukebox::{JukeboxAction, JukeboxResult};
 pub use api::lists::{AlbumListType, Starred2Content, StarredContent};
+pub use api::{
+    AlbumListOptions, CreateUserOptions, JukeboxOptions, RandomSongsOptions, Search2Options,
+    Search3Options, SearchOptions, SongsByGenreOptions, StreamOptions, UpdatePlaylistOptions,
+    UpdateUserOptions,
+};
