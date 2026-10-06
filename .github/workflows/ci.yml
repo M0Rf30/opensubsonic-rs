@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [ main, master ]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -14,48 +21,46 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    
+    - uses: actions/checkout@v7
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
-      with:
-        components: rustfmt, clippy
-    
-    - name: Cache cargo registry
-      uses: actions/cache@v4
-      with:
-        path: ~/.cargo/registry
-        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-    
-    - name: Cache cargo index
-      uses: actions/cache@v4
-      with:
-        path: ~/.cargo/git
-        key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
-    
-    - name: Cache cargo build
-      uses: actions/cache@v4
-      with:
-        path: target
-        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-    
-    - name: Build
-      run: cargo build --verbose
-    
+
+    - uses: Swatinem/rust-cache@v2
+
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --all-targets --locked
+
+    - name: Run doc tests
+      run: cargo test --doc --locked
+
+  msrv:
+    name: MSRV (1.85)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Install Rust 1.85
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: "1.85"
+
+    - uses: Swatinem/rust-cache@v2
+
+    - name: Check library
+      run: cargo check --lib --locked
 
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    
+    - uses: actions/checkout@v7
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
         components: rustfmt
-    
+
     - name: Check formatting
       run: cargo fmt --check
 
@@ -63,45 +68,31 @@ jobs:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    
+    - uses: actions/checkout@v7
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
         components: clippy
-    
-    - name: Cache cargo
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.lock') }}
-    
+
+    - uses: Swatinem/rust-cache@v2
+
     - name: Run Clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
+      run: cargo clippy --all-targets --all-features --locked -- -D warnings
 
   doc:
     name: Documentation
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    
+    - uses: actions/checkout@v7
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
-    
-    - name: Cache cargo
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-doc-${{ hashFiles('**/Cargo.lock') }}
-    
+
+    - uses: Swatinem/rust-cache@v2
+
     - name: Check documentation
-      run: cargo doc --no-deps
+      run: cargo doc --no-deps --locked
       env:
         RUSTDOCFLAGS: -D warnings
 
@@ -109,19 +100,12 @@ jobs:
     name: Publish Dry Run
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    
+    - uses: actions/checkout@v7
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
-    
-    - name: Cache cargo
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-publish-${{ hashFiles('**/Cargo.lock') }}
-    
+
+    - uses: Swatinem/rust-cache@v2
+
     - name: Dry run publish
-      run: cargo publish --dry-run --allow-dirty
+      run: cargo publish --dry-run --locked
