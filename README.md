@@ -69,12 +69,12 @@ All ~80 endpoints from Subsonic API v1.16.1 are implemented, plus OpenSubsonic e
 | Category | Endpoints |
 |---|---|
 | **System** | `ping`, `getLicense`, `getOpenSubsonicExtensions`, `tokenInfo` |
-| **Browsing** | `getMusicFolders`, `getIndexes`, `getMusicDirectory`, `getGenres`, `getArtists`, `getArtist`, `getAlbum`, `getSong`, `getVideos`, `getArtistInfo`/`2`, `getAlbumInfo`/`2`, `getSimilarSongs`/`2`, `getTopSongs` |
+| **Browsing** | `getMusicFolders`, `getIndexes`, `getMusicDirectory`, `getGenres`, `getArtists`, `getArtist`, `getAlbum`, `getSong`, `getVideos`, `getVideoInfo`, `getArtistInfo`/`2`, `getAlbumInfo`/`2`, `getSimilarSongs`/`2`, `getTopSongs` |
 | **Lists** | `getAlbumList`/`2`, `getRandomSongs`, `getSongsByGenre`, `getNowPlaying`, `getStarred`/`2` |
 | **Searching** | `search`, `search2`, `search3` |
 | **Playlists** | `getPlaylists`, `getPlaylist`, `createPlaylist`, `updatePlaylist`, `deletePlaylist` |
 | **Media Retrieval** | `stream`, `download`, `hls`, `getCaptions`, `getCoverArt`, `getLyrics`, `getLyricsBySongId`, `getAvatar` |
-| **Media Annotation** | `star`, `unstar`, `setRating`, `scrobble` |
+| **Media Annotation** | `star`, `unstar`, `setRating`, `scrobble`, `reportPlayback` *(OpenSubsonic)* |
 | **Sharing** | `getShares`, `createShare`, `updateShare`, `deleteShare` |
 | **Podcast** | `getPodcasts`, `getNewestPodcasts`, `getPodcastEpisode`, `refreshPodcasts`, `createPodcastChannel`, `deletePodcastChannel`, `deletePodcastEpisode`, `downloadPodcastEpisode` |
 | **Jukebox** | `jukeboxControl` |
@@ -84,6 +84,9 @@ All ~80 endpoints from Subsonic API v1.16.1 are implemented, plus OpenSubsonic e
 | **Bookmarks** | `getBookmarks`, `createBookmark`, `deleteBookmark`, `getPlayQueue`, `savePlayQueue`, `getPlayQueueByIndex`, `savePlayQueueByIndex` |
 | **Scanning** | `getScanStatus`, `startScan` |
 | **Transcoding** | `getTranscodeDecision`, `getTranscodeStream` *(OpenSubsonic)* |
+| **Sonic Similarity** | `getSonicSimilarTracks`, `findSonicPath` *(OpenSubsonic)* |
+
+`Client::server_info()` returns the server metadata (`type`, `serverVersion`, `openSubsonic`) from the response envelope.
 
 ## Builder options
 
@@ -91,7 +94,7 @@ All ~80 endpoints from Subsonic API v1.16.1 are implemented, plus OpenSubsonic e
 let client = Client::new("https://music.example.com", Auth::token("admin", "pass"))?
     .with_client_name("my-app")        // Custom client identifier (default: "opensubsonic-rs")
     .with_api_version("1.15.0")        // Override protocol version (default: "1.16.1")
-    .with_http_client(custom_reqwest);  // Inject a custom reqwest::Client
+    .with_http_client(custom_reqwest);  // Inject a custom reqwest::Client (timeouts, proxies, …)
 ```
 
 ## URL builders
@@ -104,11 +107,47 @@ let cover_url = client.cover_art_url("cover-id", Some(300))?;
 let hls_url = client.hls_url("video-id", None, None)?;
 ```
 
+## Streaming without buffering
+
+`stream`, `download` and `get_transcode_stream` return the whole body as `Bytes`. For large
+files use the `*_chunked` variants, which yield chunks as they arrive:
+
+```rust
+use futures_util::StreamExt;
+
+let mut body = client.stream_chunked("song-id", None, None, None, None).await?;
+while let Some(chunk) = body.next().await {
+    let chunk = chunk?;
+    // write `chunk` to a file, an audio sink, …
+}
+```
+
+## Transcoding (OpenSubsonic)
+
+```rust
+use opensubsonic::data::{ClientInfo, TranscodeMediaType};
+
+let info = ClientInfo { name: "my-player".into(), platform: "linux".into(), ..Default::default() };
+let decision = client
+    .get_transcode_decision("song-id", TranscodeMediaType::Song, &info)
+    .await?;
+if let Some(params) = decision.transcode_params.as_deref() {
+    let url = client.get_transcode_stream_url("song-id", TranscodeMediaType::Song, params, None)?;
+}
+```
+
+## Errors
+
+Every method returns `Result<_, opensubsonic::Error>`. Server-side failures surface as
+`Error::Api`, whose `error_code()` maps to `SubsonicErrorCode` (e.g. `WrongCredentials`,
+`NotFound`, `InvalidApiKey`). Credentials are redacted from `Debug` output and debug logs.
+
 ## Dependencies
 
-- [reqwest](https://crates.io/crates/reqwest) 0.13 (async HTTP, rustls TLS)
+- [reqwest](https://crates.io/crates/reqwest) 0.13 (async HTTP, rustls TLS, streaming bodies)
 - [serde](https://crates.io/crates/serde) / serde_json (JSON serialization)
-- [tokio](https://crates.io/crates/tokio) (async runtime, dev-dependency)
+- [md-5](https://crates.io/crates/md-5) / [rand](https://crates.io/crates/rand) (token authentication)
+- [tokio](https://crates.io/crates/tokio), [wiremock](https://crates.io/crates/wiremock) (dev-dependencies)
 
 Minimum supported Rust version: **1.85** (edition 2024).
 
