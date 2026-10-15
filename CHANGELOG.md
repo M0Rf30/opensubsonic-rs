@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `wasm32` support (browser `fetch` through reqwest): `ByteStream` is not `Send` there and
+  `Client::with_danger_accept_invalid_certs` does not exist (browsers own certificate checks).
+
 ## [0.6.0] - 2026-10-06
 
 ### Changed

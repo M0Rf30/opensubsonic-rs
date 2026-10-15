@@ -15,8 +15,20 @@ use crate::error::{Error, SubsonicApiError};
 use crate::params::Params;
 
 /// A boxed stream of response body chunks, as returned by streaming media endpoints.
+///
+/// On `wasm32` the stream is not `Send`: browser `fetch` bodies are tied to the
+/// JavaScript thread.
+#[cfg(not(target_arch = "wasm32"))]
 pub type ByteStream =
     std::pin::Pin<Box<dyn futures_util::Stream<Item = Result<bytes::Bytes, Error>> + Send>>;
+
+/// A boxed stream of response body chunks, as returned by streaming media endpoints.
+///
+/// On `wasm32` the stream is not `Send`: browser `fetch` bodies are tied to the
+/// JavaScript thread.
+#[cfg(target_arch = "wasm32")]
+pub type ByteStream =
+    std::pin::Pin<Box<dyn futures_util::Stream<Item = Result<bytes::Bytes, Error>>>>;
 
 /// Default Subsonic REST API protocol version.
 const DEFAULT_API_VERSION: &str = "1.16.1";
@@ -99,6 +111,9 @@ impl Client {
     ///
     /// # Errors
     /// Returns [`Error::Http`] if the HTTP client cannot be built.
+    ///
+    /// Not available on `wasm32`: a browser decides on certificates itself.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn with_danger_accept_invalid_certs(mut self) -> Result<Self, Error> {
         self.http = reqwest::Client::builder()
             .danger_accept_invalid_certs(true)
