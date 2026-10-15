@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-15
+
 ### Added
 
 - `wasm32` support (browser `fetch` through reqwest): `ByteStream` is not `Send` there and
@@ -142,7 +144,8 @@ client.search3("q", &Search3Options::new().song_count(20)).await?;
 - Comprehensive error handling
 - Full type definitions for all API responses
 
-[unreleased]: https://github.com/M0Rf30/opensubsonic-rs/compare/v0.6.0...HEAD
+[unreleased]: https://github.com/M0Rf30/opensubsonic-rs/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/M0Rf30/opensubsonic-rs/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/M0Rf30/opensubsonic-rs/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/M0Rf30/opensubsonic-rs/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/M0Rf30/opensubsonic-rs/compare/v0.3.0...v0.4.0
