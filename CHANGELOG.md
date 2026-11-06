@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Breaking:** `JukeboxStatus::volume` is now `JukeboxStatus::gain`, matching the field
+  servers send. Every `jukebox_control` call used to fail with a parse error
+  (``missing field `volume` ``).
+
 ## [0.6.1] - 2026-10-15
 
 ### Added
