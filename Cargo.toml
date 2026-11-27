@@ -12,9 +12,18 @@ documentation = "https://docs.rs/opensubsonic"
 readme = "README.md"
 include = ["src/**/*", "tests/**/*", "Cargo.toml", "README.md", "CHANGELOG.md", "LICENSE-*"]
 
+[features]
+default = ["rustls"]
+# TLS through rustls with reqwest's built-in aws-lc-rs crypto provider.
+rustls = ["reqwest/rustls"]
+# TLS through rustls without a built-in crypto provider, for applications that already use another
+# one (such as ring). The application must install a default `rustls::crypto::CryptoProvider`
+# before it builds a `Client`.
+rustls-no-provider = ["reqwest/rustls-no-provider"]
+
 [dependencies]
 # HTTP client
-reqwest = { version = "0.13", features = ["json", "rustls", "stream"], default-features = false }
+reqwest = { version = "0.13", features = ["json", "stream"], default-features = false }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
